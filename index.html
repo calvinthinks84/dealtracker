@@ -2790,7 +2790,8 @@ Apply Standard Deal Query Criteria:
       }
     }
 
-    async function callGeminiWithSearch(rawKey, prompt) {
+    async function callGeminiWithSearch(rawKey, prompt, options = {}) {
+      const requireSearch = Boolean(options.requireSearch);
       const apiKey = String(rawKey || '').replace(/\s+/g, '');
       const discovered = await discoverActiveGeminiModels(apiKey);
       // Prioritize full Flash models (which support live Google Search grounding) over flash-lite
@@ -2854,9 +2855,9 @@ Apply Standard Deal Query Criteria:
         return null;
       };
 
-      if (window._workingGeminiChoice && window._workingGeminiChoice.key === apiKey) {
+      if (window._workingGeminiChoice && window._workingGeminiChoice.key === apiKey && (!requireSearch || window._workingGeminiChoice.useSearch)) {
         const fastRes = await tryModel(window._workingGeminiChoice.model, window._workingGeminiChoice.useSearch);
-        if (fastRes) return fastRes;
+        if (fastRes && (!requireSearch || fastRes._groundedCount > 0)) return fastRes;
         window._workingGeminiChoice = null;
       }
 
@@ -2867,6 +2868,10 @@ Apply Standard Deal Query Criteria:
           window._workingGeminiChoice = { key: apiKey, model: m, useSearch: true };
           return res;
         }
+      }
+
+      if (requireSearch) {
+        throw new Error(lastErr || 'Live Google Search grounding is required but unavailable for this API key—refusing to use outdated estimates.');
       }
 
       // Pass 2: Fallback without search if grounding is unavailable for this key
@@ -3080,6 +3085,48 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       setTimeout(() => keyInput.focus(), 40);
     }
 
+    function buildLiveDealSearchPrompt(item, model) {
+      const todayStr = new Date().toLocaleDateString('en-US', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      return `CRITICAL: Today's actual date is ${todayStr}. Use LIVE Google Search grounding for today (${todayStr}) ONLY. NEVER use or fall back to outdated 2024 or prior-year training estimates.
+
+Verify and update the LIVE current US retail deal price and price prediction as of ${todayStr} for this exact product:
+Name: ${item.name}
+${model ? 'Model / Part #: ' + model : ''}
+Config: ${item.config || 'Standard'}
+Previous Tracked Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
+
+Check ALL of these live retailers, deal aggregators, cashback & card offers:
+- Amazon, Costco, Target (+ 5% Target Circle Card discount), Walmart, Best Buy, B&H Photo, Apple, Micro Center, CDW, Adorama, Newegg, and brand direct stores
+- Deal & cashback sources: Slickdeals.net, Slickdeals SIFT, Rakuten, Capital One Shopping, Citi Card offers, and Chase Sapphire Reserve / Chase Offers
+
+Requirements:
+1. Validate exact MSRP and lowest current live US retail deal price as of ${todayStr} from live search results (never guess or use 2024 data).
+2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
+3. Factor in active promo codes, coupons, Target 5% Circle Card, Rakuten, Capital One Shopping, Citi Card, or Chase Reserve cash back/offers.
+4. Provide an updated buy-timing prediction (whenToBuy) and concise projection note grounded in ${todayStr} pricing.
+5. Return ONLY valid JSON with these keys:
+{
+  "msrp": number,
+  "bestPrice": number,
+  "retailer": string,
+  "promoCode": string,
+  "couponDetails": string,
+  "cashbackPct": number,
+  "cashbackSource": string,
+  "otherPrices": "Retailer A $X | Retailer B $Y",
+  "url": "direct retailer product detail page URL",
+  "low6m": number,
+  "high6m": number,
+  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
+  "projection": string
+}`;
+    }
+
     async function runBatchPriceUpdate() {
       if (batchUpdating) return;
       const banner = document.getElementById('batch-update-banner');
@@ -3151,35 +3198,9 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
 
       async function processItem(item) {
         const model = getItemModel(item);
-        const prompt = `Re-verify and update the LIVE current US retail deal price and price prediction as of today for this exact product:
-Name: ${item.name}
-${model ? 'Model / Part #: ' + model : ''}
-Config: ${item.config || 'Standard'}
-Previous Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
-
-Apply Standard Deal Query Criteria:
-1. Validate exact MSRP and lowest current live US retail deal price (never guess).
-2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
-3. Factor in active promo codes, coupons, Rakuten cash back, or Target RedCard 5%.
-4. Provide an updated buy-timing prediction (whenToBuy) and concise projection note.
-5. Return ONLY valid JSON with these keys:
-{
-  "msrp": number,
-  "bestPrice": number,
-  "retailer": string,
-  "promoCode": string,
-  "couponDetails": string,
-  "cashbackPct": number,
-  "cashbackSource": string,
-  "otherPrices": "Retailer A $X | Retailer B $Y",
-  "url": "direct retailer product detail page URL",
-  "low6m": number,
-  "high6m": number,
-  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
-  "projection": string
-}`;
+        const prompt = buildLiveDealSearchPrompt(item, model);
         try {
-          const parsed = await callGeminiWithSearch(apiKey, prompt);
+          const parsed = await callGeminiWithSearch(apiKey, prompt, { requireSearch: true });
           const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
           const bestPrice = parsePriceNum(parsed.bestPrice) || parsePriceNum(item.bestPrice) || msrp;
           const low6m = parsePriceNum(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
@@ -3372,36 +3393,10 @@ Apply Standard Deal Query Criteria:
       renderAll();
       showToast(`Syncing live price & prediction for ${item.name}...`);
 
-      const prompt = `Re-verify and update the LIVE current US retail deal price and price prediction as of today for this exact product:
-Name: ${item.name}
-${model ? 'Model / Part #: ' + model : ''}
-Config: ${item.config || 'Standard'}
-Previous Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
-
-Apply Standard Deal Query Criteria:
-1. Validate exact MSRP and lowest current live US retail deal price (never guess).
-2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
-3. Factor in active promo codes, coupons, Rakuten cash back, or Target RedCard 5%.
-4. Provide an updated buy-timing prediction (whenToBuy) and concise projection note.
-5. Return ONLY valid JSON with these keys:
-{
-  "msrp": number,
-  "bestPrice": number,
-  "retailer": string,
-  "promoCode": string,
-  "couponDetails": string,
-  "cashbackPct": number,
-  "cashbackSource": string,
-  "otherPrices": "Retailer A $X | Retailer B $Y",
-  "url": "direct retailer product detail page URL",
-  "low6m": number,
-  "high6m": number,
-  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
-  "projection": string
-}`;
+      const prompt = buildLiveDealSearchPrompt(item, model);
 
       try {
-        const parsed = await callGeminiWithSearch(apiKey, prompt);
+        const parsed = await callGeminiWithSearch(apiKey, prompt, { requireSearch: true });
         const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
         const bestPrice = parsePriceNum(parsed.bestPrice) || parsePriceNum(item.bestPrice) || msrp;
         const low6m = parsePriceNum(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
