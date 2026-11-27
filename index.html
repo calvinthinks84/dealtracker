@@ -1,0 +1,2066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wish List Deal Tracker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <style>
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-indigo-100 selection:text-indigo-900">
+
+  <!-- Top Navigation & Header -->
+  <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+    <div class="mx-auto max-w-7xl px-4 py-3.5 sm:px-6 lg:px-8">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-start gap-3">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-200">
+            <i data-lucide="tag" class="h-5 w-5"></i>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">Wish List Deal Tracker</h1>
+              <span id="sync-badge" class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                <span id="sync-timestamp">Synced Nov 26, 2026 · 7:41 PM</span>
+              </span>
+              <button
+                id="btn-sync-now"
+                type="button"
+                title="Update sync timestamp"
+                class="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50 hover:text-indigo-600"
+              >
+                <i data-lucide="refresh-cw" class="h-3 w-3"></i>
+                <span>Sync</span>
+              </button>
+            </div>
+            <p class="mt-0.5 text-xs text-slate-500">
+              Active price tracking, promo code intelligence &amp; multi-retailer deal valuation
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <a
+            href="https://docs.google.com/spreadsheets/d/1iJrE9BQsH8HxROE_mDXM0-5zPgV2Hq8RkU6PqCI_aKA/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-indigo-600"
+          >
+            <i data-lucide="file-spreadsheet" class="h-3.5 w-3.5 text-emerald-600"></i>
+            <span>Google Sheet</span>
+            <i data-lucide="external-link" class="h-3 w-3 text-slate-400"></i>
+          </a>
+          <button
+            id="btn-import"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <i data-lucide="upload" class="h-3.5 w-3.5 text-slate-500"></i>
+            <span>Import</span>
+          </button>
+          <button
+            id="btn-export"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <i data-lucide="download" class="h-3.5 w-3.5 text-slate-500"></i>
+            <span>Export CSV</span>
+          </button>
+          <button
+            id="btn-add-item"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700"
+          >
+            <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+            <span>Add Item</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+
+    <!-- KPI Strip -->
+    <section id="kpi-strip" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <!-- Rendered dynamically -->
+    </section>
+
+    <!-- Toolbar: Search, Filters, Sort, View Toggle -->
+    <section class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <!-- Search & Status Pills -->
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center flex-1">
+          <div class="relative flex-1 max-w-md">
+            <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+            <input
+              id="search-input"
+              type="text"
+              placeholder="Search items, retailers, promo codes..."
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+
+          <div id="status-pills" class="flex flex-wrap items-center gap-1.5">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Category, Sort & View Mode -->
+        <div class="flex flex-wrap items-center gap-2">
+          <select
+            id="category-select"
+            aria-label="Filter by category"
+            class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          >
+            <option value="All">All Categories</option>
+            <option value="Tech & Apple">Tech &amp; Apple</option>
+            <option value="Home & Office">Home &amp; Office</option>
+            <option value="Apparel">Apparel</option>
+            <option value="Kids & Toys">Kids &amp; Toys</option>
+            <option value="Other">Other</option>
+          </select>
+
+          <select
+            id="sort-select"
+            aria-label="Sort items"
+            class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          >
+            <option value="savingsPctDesc">Savings (%) High-Low</option>
+            <option value="savingsDollarDesc">Savings ($) High-Low</option>
+            <option value="priceAsc">Price Low-High</option>
+            <option value="priceDesc">Price High-Low</option>
+            <option value="nameAsc">Name A-Z</option>
+          </select>
+
+          <div class="inline-flex rounded-xl border border-slate-200 bg-slate-100/80 p-0.5">
+            <button
+              id="view-cards"
+              type="button"
+              class="view-tab inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
+              data-view="cards"
+            >
+              <i data-lucide="layout-grid" class="h-3.5 w-3.5"></i>
+              <span>Cards</span>
+            </button>
+            <button
+              id="view-table"
+              type="button"
+              class="view-tab inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
+              data-view="table"
+            >
+              <i data-lucide="table-2" class="h-3.5 w-3.5"></i>
+              <span>Table</span>
+            </button>
+            <button
+              id="view-analytics"
+              type="button"
+              class="view-tab inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition"
+              data-view="analytics"
+            >
+              <i data-lucide="bar-chart-3" class="h-3.5 w-3.5"></i>
+              <span>Analytics</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Content Container -->
+    <section id="main-content" class="space-y-6">
+      <!-- Cards / Table / Analytics rendered here -->
+    </section>
+
+    <!-- Footer Note & Reset -->
+    <footer class="flex flex-col items-center justify-between gap-2 border-t border-slate-200 pt-4 pb-8 text-xs text-slate-500 sm:flex-row">
+      <p>
+        Data synced from your
+        <a
+          href="https://docs.google.com/spreadsheets/d/1iJrE9BQsH8HxROE_mDXM0-5zPgV2Hq8RkU6PqCI_aKA/edit"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="font-medium text-indigo-600 hover:underline"
+        >Wish List Deal Tracker Google Sheet</a>.
+        Local edits &amp; target prices are saved in your browser.
+      </p>
+      <button
+        id="btn-reset-data"
+        type="button"
+        class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-rose-600"
+      >
+        <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i>
+        <span>Reset to Sheet Defaults</span>
+      </button>
+    </footer>
+  </main>
+
+  <!-- Offer & Price Intelligence Modal -->
+  <div id="detail-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div class="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="detail-category" class="inline-block rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"></span>
+            <span id="detail-when-badge" class="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold"></span>
+          </div>
+          <h2 id="detail-title" class="mt-1 text-lg font-bold text-slate-900"></h2>
+          <p id="detail-config" class="text-xs text-slate-500"></p>
+        </div>
+        <button id="close-detail-modal" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <div id="detail-body" class="overflow-y-auto p-6 space-y-6">
+        <!-- Dynamic content -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Standardized Add / Edit Item Onboarding Modal -->
+  <div id="form-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div class="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div>
+          <h2 id="form-modal-title" class="text-base font-bold text-slate-900">Add Wishlist Item</h2>
+          <p class="text-[11px] text-slate-500">Standardized onboarding: search all retailers, verify coupons &amp; set buy prediction</p>
+        </div>
+        <button id="close-form-modal" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <form id="item-form" class="overflow-y-auto p-6 space-y-5">
+        <input type="hidden" id="form-id" />
+
+        <!-- Step 1: Product Info -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-700">
+            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px]">1</span>
+            <span>Product Details</span>
+          </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="sm:col-span-2">
+              <label for="form-name" class="block text-xs font-semibold text-slate-700">Item Name *</label>
+              <input id="form-name" type="text" required placeholder='e.g. Sony WH-1000XM6 Headphones' class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="form-config" class="block text-xs font-semibold text-slate-700">Configuration / Specs</label>
+              <input id="form-config" type="text" placeholder="e.g. Midnight Black, USB-C, 30hr Battery" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-category" class="block text-xs font-semibold text-slate-700">Category</label>
+              <select id="form-category" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                <option value="Tech & Apple">Tech &amp; Apple</option>
+                <option value="Home & Office">Home &amp; Office</option>
+                <option value="Apparel">Apparel</option>
+                <option value="Kids & Toys">Kids &amp; Toys</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label for="form-status" class="block text-xs font-semibold text-slate-700">Status</label>
+              <select id="form-status" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                <option value="Deal Active">Deal Active</option>
+                <option value="Monitoring">Monitoring</option>
+                <option value="Purchased">Purchased</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Search All Sites & Coupon Sources -->
+        <div class="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-700">
+              <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px]">2</span>
+              <span>Search All Sites &amp; Coupon Sources</span>
+            </div>
+            <span class="text-[11px] text-indigo-600">Uses Item Name above</span>
+          </div>
+          <div id="onboarding-site-links" class="flex flex-wrap gap-1.5">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Step 3: Pricing, Coupons & Multi-Retailer Notes -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-700">
+            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px]">3</span>
+            <span>Best Price &amp; Coupon Intelligence</span>
+          </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label for="form-msrp" class="block text-xs font-semibold text-slate-700">MSRP ($) *</label>
+              <input id="form-msrp" type="number" step="0.01" min="0" required placeholder="399.99" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-best-price" class="block text-xs font-semibold text-slate-700">Best Current Price ($) *</label>
+              <input id="form-best-price" type="number" step="0.01" min="0" required placeholder="329.99" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-target-price" class="block text-xs font-semibold text-slate-700">Target Alert Price ($)</label>
+              <input id="form-target-price" type="number" step="0.01" min="0" placeholder="Optional target" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-retailer" class="block text-xs font-semibold text-slate-700">Best Retailer *</label>
+              <input id="form-retailer" type="text" required placeholder="e.g. Amazon, B&H Photo" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-promo-code" class="block text-xs font-semibold text-slate-700">Coupon / Promo Code</label>
+              <input id="form-promo-code" type="text" placeholder="e.g. BF26 or BIGHOLIDAY25" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-coupon-notes" class="block text-xs font-semibold text-slate-700">Discount / Cashback Details</label>
+              <input id="form-coupon-notes" type="text" placeholder="e.g. 20% off + 5% Prime Visa" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div class="sm:col-span-3">
+              <label for="form-other-prices" class="block text-xs font-semibold text-slate-700">Other Retailer Prices</label>
+              <input id="form-other-prices" type="text" placeholder="e.g. Best Buy $349.99 | Target $349.99 | Costco $339.99" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div class="sm:col-span-3">
+              <label for="form-url" class="block text-xs font-semibold text-slate-700">Best Deal URL</label>
+              <input id="form-url" type="url" placeholder="https://..." class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: 6-Month History, Prediction & When to Buy -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-700">
+            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px]">4</span>
+            <span>6-Month History, Prediction &amp; When to Buy</span>
+          </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label for="form-low6m" class="block text-xs font-semibold text-slate-700">6-Month Low ($)</label>
+              <input id="form-low6m" type="number" step="0.01" min="0" placeholder="Optional 6-mo low" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-high6m" class="block text-xs font-semibold text-slate-700">6-Month High ($)</label>
+              <input id="form-high6m" type="number" step="0.01" min="0" placeholder="Optional 6-mo high" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-when-to-buy" class="block text-xs font-semibold text-slate-700">When to Buy Verdict</label>
+              <select id="form-when-to-buy" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                <option value="Buy Now — All-Time / BF Low">Buy Now — All-Time / BF Low</option>
+                <option value="Buy Now — Promo Code Active">Buy Now — Promo Code Active</option>
+                <option value="Wait — Price Drop Expected">Wait — Price Drop Expected</option>
+                <option value="Hold — At MSRP">Hold — At MSRP</option>
+              </select>
+            </div>
+            <div class="sm:col-span-3">
+              <label for="form-projection" class="block text-xs font-semibold text-slate-700">Price Prediction (Next 3–6 Mos) &amp; Timing Rationale</label>
+              <input id="form-projection" type="text" placeholder="e.g. Expected $299 in Spring 2027; buy now if needed before holidays" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+          <button id="cancel-form-modal" type="button" class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">Save Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Import CSV / JSON Modal -->
+  <div id="import-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div class="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <h2 class="text-base font-bold text-slate-900">Import Wishlist Data (JSON or CSV)</h2>
+        <button id="close-import-modal" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <div class="p-6 space-y-4">
+        <p class="text-xs text-slate-600">
+          Upload a CSV exported from your Google Sheet or paste JSON items below.
+        </p>
+        <input id="import-file-input" type="file" accept=".csv,.json" class="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" />
+        <textarea id="import-textarea" rows="5" placeholder='[{"name":"Sony WH-1000XM6","msrp":399.99,"bestPrice":329.99,"retailer":"Amazon","category":"Tech & Apple","status":"Deal Active"}]' class="w-full rounded-xl border border-slate-200 p-3 font-mono text-xs focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
+        <div id="import-error" class="hidden rounded-lg bg-rose-50 p-2.5 text-xs font-medium text-rose-700"></div>
+        <div class="flex items-center justify-end gap-2">
+          <button id="cancel-import-modal" type="button" class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button id="confirm-import-btn" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">Merge Imported Items</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="pointer-events-none fixed bottom-5 right-5 z-50 translate-y-4 opacity-0 transition-all duration-200">
+    <div class="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg">
+      <i data-lucide="check-circle-2" class="h-4 w-4 text-emerald-400"></i>
+      <span id="toast-message">Copied to clipboard</span>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'wishlist_deal_tracker_v2';
+    const SYNC_KEY = 'wishlist_deal_tracker_sync_v2';
+    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTM5-n2kRQJMAGyjCJwArgrEOmSwf1G6yNhejZ86kXB5PyGGLaNz92ACW0uqf83NVN2F63e-JUmmARb/pub?gid=0&single=true&output=csv';
+
+    const SEARCH_SITES = [
+      { name: 'Amazon', url: q => `https://www.amazon.com/s?k=${encodeURIComponent(q)}` },
+      { name: 'Costco', url: q => `https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(q)}` },
+      { name: 'Target', url: q => `https://www.target.com/s?searchTerm=${encodeURIComponent(q)}` },
+      { name: 'Walmart', url: q => `https://www.walmart.com/search?q=${encodeURIComponent(q)}` },
+      { name: 'Best Buy', url: q => `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(q)}` },
+      { name: 'B&H Photo', url: q => `https://www.bhphotovideo.com/c/search?q=${encodeURIComponent(q)}` },
+      { name: 'Apple Store', url: q => `https://www.apple.com/us/search/${encodeURIComponent(q)}` },
+      { name: 'Slickdeals', url: q => `https://slickdeals.net/newsearch.php?q=${encodeURIComponent(q)}` },
+      { name: 'Coupons (RetailMeNot)', url: q => `https://www.retailmenot.com/s/${encodeURIComponent(q)}` }
+    ];
+
+    const INITIAL_ITEMS = [
+      {
+        id: 'mbp-14-m6',
+        name: 'Apple MacBook Pro 14" (M6)',
+        config: '12C CPU / 12C GPU, 16GB RAM, 1TB SSD, Space Black',
+        category: 'Tech & Apple',
+        msrp: 1999.00,
+        bestPrice: 1779.00,
+        targetPrice: 1749.00,
+        retailer: 'B&H Photo',
+        promoCode: '$20 In-Cart',
+        couponDetails: '$20 in-cart coupon (applied in cart)',
+        otherPrices: 'Amazon $1,799 | Best Buy $1,849 | Apple Edu $1,899 | Costco $1,949.99 (w/ AppleCare+)',
+        history6m: '$1,779 - $1,999 (Launch Nov 6; M5 6-mo low: $1,749)',
+        priceHistory6m: [
+          { label: 'Jun (M5 Bench)', price: 1899 },
+          { label: 'Jul (M5 Prime)', price: 1749 },
+          { label: 'Aug (M5 Bench)', price: 1899 },
+          { label: 'Sep (M5 Bench)', price: 1899 },
+          { label: 'Nov 6 (M6 Launch)', price: 1999 },
+          { label: 'Nov 14 (Early BF)', price: 1799 },
+          { label: 'Nov 26 (Now)', price: 1779 }
+        ],
+        projection: '$1,699 - $1,749 (Q1-Q2 2027; BF: $1,749-$1,779)',
+        whenToBuy: 'Buy Now — All-Time / BF Low',
+        status: 'Deal Active',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://www.macprices.net/2026/11/25/amazon-and-bh-drop-14-inch-m6-macbook-pro-prices-for-black-friday-save-up-to-220/',
+        offers: [
+          { retailer: 'B&H Photo Video', listed: 1799.00, promo: '$20 in-cart coupon', net: 1779.00, fulfillment: 'In Stock (Free 2-day shipping)', perks: 'Payboo Card pays full sales tax (saves ~$160)', rating: 'Best Overall Deal ($1,779)', url: 'https://www.macprices.net/2026/11/25/amazon-and-bh-drop-14-inch-m6-macbook-pro-prices-for-black-friday-save-up-to-220/' },
+          { retailer: 'Amazon', listed: 1799.00, promo: 'None needed (Instant holiday savings)', net: 1799.00, fulfillment: 'In Stock (Prime Next-Day Delivery)', perks: '5% back with Prime Visa ($88.95 extra value)', rating: 'Great Deal ($1,799)', url: 'https://www.macprices.net/2026/11/25/amazon-and-bh-drop-14-inch-m6-macbook-pro-prices-for-black-friday-save-up-to-220/' },
+          { retailer: 'Best Buy', listed: 1849.00, promo: 'None needed ($150 off MSRP)', net: 1849.00, fulfillment: 'In Stock (Same-day store pickup or free ship)', perks: 'My Best Buy Plus: 60-day return window', rating: 'Solid Option (Fast Pickup)', url: 'https://www.bestbuy.com/product/apple-macbook-pro-14-inch-laptop-m6-chip-with-12-core-cpu-and-12-core-gpu-16gb-memory-1tb-ssd-space-black/JJGCQYK2SH/sku/6565882?utm_source=feed' },
+          { retailer: 'Apple Education Store', listed: 1899.00, promo: 'Student/Educator discount applied', net: 1899.00, fulfillment: 'In Stock (Apple Store order / pickup)', perks: '20% off AppleCare+, free engraving', rating: 'Official Apple Edu', url: 'https://www.apple.com/us-edu/store' },
+          { retailer: 'Costco Wholesale', listed: 1949.99, promo: 'Bundle Savings ($150 off $2,100 value)', net: 1949.99, fulfillment: 'Member Exclusive (Warehouse or Online)', perks: 'INCLUDES 3-Yr AppleCare+ ($279 value) & 90-day returns', rating: 'Best Bundle Value', url: 'https://dealsfinders.com/macbook-pro-14-m6-16gb-1tb-w-applecare-1949-99/' }
+        ],
+        forecasts: [
+          { window: 'Cyber Week 2026', range: 'Nov 27 – Nov 30, 2026', low: 1749, high: 1779, prob: 'High (90%)', note: 'BEST TIME TO BUY. Matches historic floor; stock expected to sell out fast.' },
+          { window: 'Post-Holiday Rebound', range: 'Dec 2026 – Jan 2027', low: 1849, high: 1949, prob: 'High (85%)', note: 'HOLD OFF. Prices will rebound closer to MSRP after Dec 15.' },
+          { window: 'Spring Sales Cycle', range: 'Feb – Apr 2027', low: 1699, high: 1749, prob: 'Medium (65%)', note: 'TARGET WINDOW FOR PATIENT BUYERS. Sub-$1,700 pricing possible.' },
+          { window: 'Mid-Year Prime Cycle', range: 'Jun – Jul 2027', low: 1649, high: 1699, prob: 'High (75%)', note: 'DEEP VALUE WINDOW. Expected cyclical low prior to late-2027 refreshes.' }
+        ]
+      },
+      {
+        id: 'bombas-socks-4pk',
+        name: 'Bombas Socks (4-Pack Multipacks)',
+        config: '4-Pack Ankle/Calf Multipacks (Cotton or Merino)',
+        category: 'Apparel',
+        msrp: 56.00,
+        bestPrice: 37.80,
+        targetPrice: 40.00,
+        retailer: 'Bombas.com',
+        promoCode: 'BIGHOLIDAY25',
+        couponDetails: 'BIGHOLIDAY25 (25% off sitewide Nov 21 - Dec 2) + 6% Rakuten',
+        otherPrices: "Men's Ankle $39.15 (was $58) | Men's Calf $40.50 (was $60) | Merino $60.75 (was $90)",
+        history6m: 'Standard 8-15% multipack pricing; 20-25% off during July & Nov sales',
+        priceHistory6m: [
+          { label: 'Jun 2026', price: 51.50 },
+          { label: 'Jul (Summer Sale)', price: 42.00 },
+          { label: 'Aug 2026', price: 51.50 },
+          { label: 'Sep 2026', price: 51.50 },
+          { label: 'Oct 2026', price: 51.50 },
+          { label: 'Nov 26 (Now)', price: 37.80 }
+        ],
+        projection: 'Returns to ~$48-$56 after Dec 2; next 20-25% drop Spring/Summer 2027',
+        whenToBuy: 'Buy Now — Promo Code Active',
+        status: 'Deal Active',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://bombas.com/pages/promo-offer-terms',
+        offers: [
+          { retailer: 'Bombas.com (Cotton 4-Pack)', listed: 56.00, promo: 'BIGHOLIDAY25 (25% off)', net: 37.80, fulfillment: 'In Stock (Free shipping >$75)', perks: '+ 6% Rakuten cash back', rating: 'Best Deal ($37.80)', url: 'https://bombas.com/pages/promo-offer-terms' },
+          { retailer: "Bombas.com (Men's Ankle 4-Pack)", listed: 58.00, promo: 'BIGHOLIDAY25 (25% off)', net: 39.15, fulfillment: 'In Stock', perks: '+ 6% Rakuten cash back', rating: '25% Off', url: 'https://bombas.com/pages/promo-offer-terms' },
+          { retailer: "Bombas.com (Men's Calf 4-Pack)", listed: 60.00, promo: 'BIGHOLIDAY25 (25% off)', net: 40.50, fulfillment: 'In Stock', perks: '+ 6% Rakuten cash back', rating: '25% Off', url: 'https://bombas.com/pages/promo-offer-terms' },
+          { retailer: 'Bombas.com (Merino 4-Pack)', listed: 90.00, promo: 'BIGHOLIDAY25 (25% off)', net: 60.75, fulfillment: 'In Stock', perks: '+ 6% Rakuten cash back', rating: '25% Off', url: 'https://bombas.com/pages/promo-offer-terms' }
+        ],
+        forecasts: []
+      },
+      {
+        id: 'atlas-headrest-embody',
+        name: 'Atlas Headrest — Embody Gaming (Black/Cyan)',
+        config: 'Black Frame / Cyan Gaming Sync Fabric',
+        category: 'Home & Office',
+        msrp: 189.95,
+        bestPrice: 166.32,
+        targetPrice: 170.00,
+        retailer: 'Crandall Office Furniture',
+        promoCode: 'BF26',
+        couponDetails: 'BF26 (12% off Everything Else — Black Friday Sale)',
+        otherPrices: 'Atlas Headrest Direct $189.95 (free ship >$150)',
+        history6m: 'Steady at $189.95 MSRP (rare $5-$10 creator promos)',
+        priceHistory6m: [
+          { label: 'Jun 2026', price: 189.95 },
+          { label: 'Jul 2026', price: 189.95 },
+          { label: 'Aug 2026', price: 184.95 },
+          { label: 'Sep 2026', price: 189.95 },
+          { label: 'Oct 2026', price: 189.95 },
+          { label: 'Nov 26 (BF26)', price: 166.32 }
+        ],
+        projection: '$184.95 - $189.95 (Minimal fluctuation expected through Q1 2027)',
+        whenToBuy: 'Buy Now — Promo Code Active',
+        status: 'Deal Active',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://crandalloffice.com/products/atlas-headrest-for-herman-miller-embody-chair?variant=51642608419182&country=US&currency=USD&utm_medium=product_sync&utm_source=google&utm_content=sag_organic&utm_campaign=sag_organic',
+        offers: [
+          { retailer: 'Crandall Office Furniture', listed: 189.95, promo: 'BF26 (12% off Everything Else)', net: 166.32, fulfillment: 'In Stock', perks: 'Black Friday Sale', rating: 'Deal Active ($166.32)', url: 'https://crandalloffice.com/products/atlas-headrest-for-herman-miller-embody-chair?variant=51642608419182&country=US&currency=USD&utm_medium=product_sync&utm_source=google&utm_content=sag_organic&utm_campaign=sag_organic' },
+          { retailer: 'Atlas Headrest Direct', listed: 189.95, promo: 'None', net: 189.95, fulfillment: 'Free shipping >$150', perks: 'Direct OEM warranty', rating: 'MSRP ($189.95)', url: 'https://crandalloffice.com/products/atlas-headrest-for-herman-miller-embody-chair?variant=51642608419182&country=US&currency=USD&utm_medium=product_sync&utm_source=google&utm_content=sag_organic&utm_campaign=sag_organic' }
+        ],
+        forecasts: []
+      },
+      {
+        id: 'brio-railway-33710',
+        name: 'BRIO My First Railway Battery Train Set (#33710)',
+        config: '25-Piece Battery-Operated Starter Set (Ages 18m+)',
+        category: 'Kids & Toys',
+        msrp: 89.99,
+        bestPrice: 76.49,
+        targetPrice: 75.00,
+        retailer: 'Ravensburger North America (Official)',
+        promoCode: '',
+        couponDetails: 'None needed (15% instant holiday sale; free delivery)',
+        otherPrices: 'eBay $80.00 + $15.50 shipping ($95.50 total)',
+        history6m: '$76.49 - $89.99 (Full retail to 15% seasonal promotional discount)',
+        priceHistory6m: [
+          { label: 'Jun 2026', price: 89.99 },
+          { label: 'Jul 2026', price: 89.99 },
+          { label: 'Aug 2026', price: 89.99 },
+          { label: 'Sep 2026', price: 89.99 },
+          { label: 'Oct 2026', price: 89.99 },
+          { label: 'Nov 26 (Now)', price: 76.49 }
+        ],
+        projection: '$72.00 - $80.00 (Holiday); $80.00 - $89.99 (Q1 2027)',
+        whenToBuy: 'Buy Now — All-Time / BF Low',
+        status: 'Deal Active',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed',
+        offers: [
+          { retailer: 'Ravensburger North America (Official)', listed: 89.99, promo: '15% instant holiday sale', net: 76.49, fulfillment: 'In Stock (Free delivery)', perks: 'Official direct storefront', rating: 'Deal Active ($76.49)', url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed' },
+          { retailer: 'eBay', listed: 80.00, promo: '+ $15.50 shipping', net: 95.50, fulfillment: 'Standard shipping', perks: '3P Marketplace', rating: 'Above MSRP ($95.50)', url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed' }
+        ],
+        forecasts: []
+      },
+      {
+        id: 'airpods-pro-3',
+        name: 'Apple AirPods Pro 3 (3rd Generation)',
+        config: 'Wireless Earbuds, ANC, Heart Rate Sensing, Live Translation, MagSafe Case (USB-C), White',
+        category: 'Tech & Apple',
+        msrp: 249.00,
+        bestPrice: 149.00,
+        targetPrice: 159.00,
+        retailer: 'Walmart',
+        promoCode: '',
+        couponDetails: 'None needed (Black Friday instant savings; Apple Store offers $50 Apple Gift Card Nov 27–30)',
+        otherPrices: "Amazon $149.00 | Target $149.99 ($142.49 w/ Circle Card) | BJ's $149.99 | Best Buy $179.99 | Sam's Club $189.00 | Apple $249.00 (+$50 GC)",
+        history6m: '$149.00 - $249.00 (Summer 2026 Prime Day: $169; Oct 7: $179; Nov 22: $169.99; BF low: $149.00)',
+        priceHistory6m: [
+          { label: 'Jun 2026', price: 249.00 },
+          { label: 'Jul (Prime Day)', price: 169.00 },
+          { label: 'Aug–Sep', price: 199.00 },
+          { label: 'Oct 7', price: 179.00 },
+          { label: 'Nov 22', price: 169.99 },
+          { label: 'Nov 26 (BF Low)', price: 149.00 }
+        ],
+        projection: 'Returns to $179 - $249 after Cyber Monday; likely $169 - $189 during holiday/Q1-Q2 2027 sales',
+        whenToBuy: 'Buy Now — All-Time / BF Low',
+        status: 'Deal Active',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://www.walmart.com/ip/AirPods-nbsp-Pro-nbsp-3/17835006350?wmlspartner=wlpa&selectedSellerId=0&veh=seo_fpl&cn=google',
+        offers: [
+          { retailer: 'Walmart', listed: 149.00, promo: 'Black Friday instant savings', net: 149.00, fulfillment: 'In Stock (Free 2-day delivery)', perks: 'Walmart+ free shipping & member perks', rating: 'Best Price Deal ($149.00)', url: 'https://www.walmart.com/ip/AirPods-nbsp-Pro-nbsp-3/17835006350?wmlspartner=wlpa&selectedSellerId=0&veh=seo_fpl&cn=google' },
+          { retailer: 'Amazon', listed: 149.00, promo: 'Instant Black Friday savings', net: 149.00, fulfillment: 'In Stock (Prime Next-Day Delivery)', perks: '5% back with Prime Visa ($7.45 extra value)', rating: 'All-Time Low ($149.00)', url: 'https://www.macrumors.com/2026/11/25/amazon-airpods-pro-3-deal-back/' },
+          { retailer: 'Target', listed: 149.99, promo: '40% off instant Black Friday savings', net: 149.99, fulfillment: 'In Stock (Same-day pickup or free ship)', perks: '5% off w/ Target Circle Card ($142.49 net)', rating: 'Lowest w/ Card ($142.49)', url: 'https://www.target.com/p/ap2022-true-wireless-bluetooth-headphones/-/A-85978609?TCID=OGS&AFID=google&CPNG=Electronics&adgroup=57-10' },
+          { retailer: "BJ's Wholesale Club", listed: 149.99, promo: 'Instant holiday member discount', net: 149.99, fulfillment: 'In Stock (Free delivery for members)', perks: 'Wholesale club pricing & extended returns', rating: 'Club Deal ($149.99)', url: 'https://www.bjs.com/product/apple-airpod-pro-3-with-active-noise-cancellation/3000000000005860257/?fulfillment=shipping' },
+          { retailer: 'Best Buy', listed: 179.99, promo: 'Black Friday Sale ($70 off MSRP)', net: 179.99, fulfillment: 'In Stock (Free delivery or 1-hr pickup)', perks: 'My Best Buy Plus: 60-day return window', rating: 'Fast Pickup ($179.99)', url: 'https://www.bestbuy.com/product/apple-airpods-pro-3-wireless-active-noise-cancelling-earbuds-with-heart-rate-sensing-feature-white/JJGCQLYK5F/sku/6376563?utm_source=feed' },
+          { retailer: "Sam's Club", listed: 189.00, promo: '$60 off holiday promo (ends Dec 2)', net: 189.00, fulfillment: 'In Stock (Club pickup or standard delivery)', perks: "Sam's Cash rewards eligible", rating: 'Club Promo ($189.00)', url: 'https://www.samsclub.com/ip/airpods-gen-5-airpods-gen-5/20961970180' },
+          { retailer: 'Apple Store', listed: 249.00, promo: '$50 Apple Gift Card (Nov 27–30)', net: 249.00, fulfillment: 'In Stock (Apple Store pickup or next-day)', perks: 'Includes $50 Apple Gift Card + free engraving', rating: 'Official Gift Card ($50 GC)', url: 'https://www.macworld.com/article/1375970/best-apple-black-friday-deals-2026-nov-25.html' }
+        ],
+        forecasts: []
+      },
+      {
+        id: 'airpods-5-anc',
+        name: 'Apple AirPods 5 (ANC)',
+        config: 'Open-Ear Wireless Earbuds, Active Noise Cancellation, Adaptive Audio, USB-C Charging Case, White',
+        category: 'Tech & Apple',
+        msrp: 129.00,
+        bestPrice: 129.00,
+        targetPrice: 109.00,
+        retailer: 'Best Buy / Staples',
+        promoCode: '',
+        couponDetails: 'None on USB-C model (Apple Store offers $25 Apple Gift Card Nov 27–30)',
+        otherPrices: "Target $129.99 | Staples $129.00 | Sam's Club $141.90 (Wireless Case) | Walmart $126.00 (Wireless Case, 3P) | Apple $129.00 (+$25 GC)",
+        history6m: '$129.00 (USB-C; launched Sept 18, 2026; minor ~$4 launch dip to $124.99); Wireless Case: $126.00-$149.00',
+        priceHistory6m: [
+          { label: 'Sep 18 (Launch)', price: 129.00 },
+          { label: 'Sep 25 (Launch Dip)', price: 124.99 },
+          { label: 'Oct 2026', price: 129.00 },
+          { label: 'Nov 10', price: 129.00 },
+          { label: 'Nov 26 (Now)', price: 129.00 }
+        ],
+        projection: '$99 - $119 (Q1–Q2 2027 / Spring sales, following AirPods 4 post-launch discount pattern)',
+        whenToBuy: 'Wait — Price Drop Expected',
+        status: 'Monitoring',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://www.bestbuy.com/product/apple-airpods-5-true-wireless-active-noise-cancelling-earbuds-white/JJGCQP68Y2/sku/6376553?utm_source=feed',
+        offers: [
+          { retailer: 'Best Buy (USB-C Case)', listed: 129.00, promo: 'Standard launch pricing (MSRP)', net: 129.00, fulfillment: 'In Stock (Free delivery or 1-hr pickup)', perks: 'My Best Buy 60-day returns', rating: 'Best Retailer ($129.00)', url: 'https://www.bestbuy.com/product/apple-airpods-5-true-wireless-active-noise-cancelling-earbuds-white/JJGCQP68Y2/sku/6376553?utm_source=feed' },
+          { retailer: 'Staples (USB-C Case)', listed: 129.00, promo: 'Standard launch pricing (MSRP)', net: 129.00, fulfillment: 'In Stock (Free delivery)', perks: 'Easy Rewards eligible', rating: 'Official Retailer ($129.00)', url: 'https://www.staples.com/apple-airpods-5-wireless-active-noise-cancellation-earbuds-with-usb-c-charging-case-bluetooth-white-mkfw4ll-a/product_24780862' },
+          { retailer: 'Target (USB-C Case)', listed: 129.99, promo: 'Standard retail list price', net: 129.99, fulfillment: 'In Stock (Drive Up or delivery)', perks: '5% off w/ Target Circle Card', rating: 'Target Stock ($129.99)', url: 'https://www.target.com/p/apple-airpods-5-wireless-earbuds-with-active-noise-cancellation/-/A-85978611' },
+          { retailer: 'Walmart (Wireless Case, 3P)', listed: 126.00, promo: '15% off $149 Wireless Case MSRP', net: 126.00, fulfillment: 'In Stock (Free 3-day delivery)', perks: 'Wireless Charging Case edition ($149 MSRP)', rating: 'Lowest Wireless ($126.00)', url: 'https://www.walmart.com/ip/Apple-AirPods-5-with-Wireless-Charging-Case/20991207083?wmlspartner=wlpa&selectedSellerId=152&veh=seo_fpl&cn=google' },
+          { retailer: "Sam's Club (Wireless Case)", listed: 141.90, promo: "Sam's Cash member pricing", net: 141.90, fulfillment: 'In Stock (Online only shipping)', perks: 'Wireless Charging Case edition ($149 MSRP)', rating: 'Club Wireless ($141.90)', url: 'https://www.samsclub.com/ip/airpods-gen-5-airpods-gen-5/20961970180' },
+          { retailer: 'Apple Store (Official Event)', listed: 129.00, promo: '$25 Apple Gift Card (Nov 27–30)', net: 129.00, fulfillment: 'In Stock (Apple Store pickup or free ship)', perks: 'Includes $25 Apple Gift Card + free engraving', rating: 'Official Gift Card ($25 GC)', url: 'https://www.macworld.com/article/1375970/best-apple-black-friday-deals-2026-nov-25.html' }
+        ],
+        forecasts: []
+      },
+      {
+        id: 'simplehuman-soap-3pk',
+        name: 'simplehuman Lavender Liquid Hand Soap Refill Bottle (3-Pack)',
+        config: '3 Bottles (30 fl. oz. each), Lavender Scent, Gel Hand Soap (for Sensor Pumps)',
+        category: 'Home & Office',
+        msrp: 30.00,
+        bestPrice: 27.00,
+        targetPrice: 27.00,
+        retailer: "simplehuman.com (Auto Refill) / Lowe's",
+        promoCode: 'AUTO REFILL',
+        couponDetails: 'Auto Refill — Save 10% ($27.00 every 2, 3, or 4 months) on simplehuman.com; free delivery',
+        otherPrices: "simplehuman.com $30.00 (one-time) | Lowe's $29.99 | Target $30.99 ($29.44 w/ Circle Card) | Nordstrom $34.99 | W.B. Mason $38.00 | The Container Store $10.00/single",
+        history6m: '$27.00 - $30.00 (3-pack steady at $30.00 MSRP; $27.00 w/ 10% Auto Refill; single bottles $10.00-$12.00)',
+        priceHistory6m: [
+          { label: 'Jun 2026', price: 30.00 },
+          { label: 'Jul 2026', price: 30.00 },
+          { label: 'Aug 2026', price: 27.00 },
+          { label: 'Sep 2026', price: 30.00 },
+          { label: 'Oct 2026', price: 29.99 },
+          { label: 'Nov 26 (Auto Refill)', price: 27.00 }
+        ],
+        projection: '$27.00 - $30.00 (Steady MSRP; occasional 10-20% sitewide/subscriber promos)',
+        whenToBuy: 'Buy Now — Promo Code Active',
+        status: 'Deal Active',
+        lastChecked: '2026-11-26 19:41',
+        url: 'https://www.simplehuman.com/products/lavender-liquid-hand-soap-refill-bottle?variant=46651850424451',
+        offers: [
+          { retailer: 'simplehuman.com (Auto Refill)', listed: 30.00, promo: 'Auto Refill (Save 10%)', net: 27.00, fulfillment: 'In Stock (Free delivery w/ refill)', perks: 'Customizable 2, 3, or 4-month refill schedule; 45-day returns', rating: 'Best Refill Deal ($27.00)', url: 'https://www.simplehuman.com/products/lavender-liquid-hand-soap-refill-bottle?variant=46651850424451' },
+          { retailer: "Lowe's (One-Time Purchase)", listed: 29.99, promo: 'Everyday Low Price', net: 29.99, fulfillment: 'In Stock (Free store pickup or delivery)', perks: "5% off with Lowe's Advantage Card ($28.49 net)", rating: 'Lowest One-Time ($29.99)', url: 'https://www.lowes.com/search?searchTerm=simplehuman+lavender+refill' },
+          { retailer: 'simplehuman.com (One-Time)', listed: 30.00, promo: 'Standard MSRP list price', net: 30.00, fulfillment: 'Free shipping on orders >$49', perks: 'Official direct purchase; 45-day returns & warranty', rating: 'Direct MSRP ($30.00)', url: 'https://www.simplehuman.com/products/lavender-liquid-hand-soap-refill-bottle?variant=46651850424451' },
+          { retailer: 'Target (One-Time)', listed: 30.99, promo: 'Standard retail list price', net: 30.99, fulfillment: 'In Stock (Drive Up or delivery)', perks: '5% off w/ Target Circle Card ($29.44 net)', rating: 'Target Stock ($30.99)', url: 'https://www.target.com/s?searchTerm=simplehuman+lavender+soap+refill' },
+          { retailer: 'Nordstrom (One-Time)', listed: 34.99, promo: 'Regular listed price', net: 34.99, fulfillment: 'Free standard shipping & returns', perks: 'Nordy Club points eligible', rating: 'Nordstrom Stock ($34.99)', url: 'https://www.nordstrom.com/sr?origin=keywordsearch&keyword=simplehuman+lavender+refill' },
+          { retailer: 'W.B. Mason (Commercial)', listed: 38.00, promo: 'Commercial supply catalog', net: 38.00, fulfillment: 'Standard commercial delivery', perks: 'B2B invoicing & bulk accounts', rating: 'B2B Catalog ($38.00)', url: 'https://www.wbmason.com/' },
+          { retailer: 'The Container Store (Single)', listed: 10.00, promo: 'On sale from $11.99 (30-day low)', net: 10.00, fulfillment: 'Free store pickup or shipping', perks: 'Single 34 fl. oz. bottle/pouch (3 = $30.00)', rating: 'Single Bottle Sale ($10.00)', url: 'https://www.containerstore.com/s?q=simplehuman+refill' }
+        ],
+        forecasts: []
+      }
+    ];
+
+    let state = {
+      items: [],
+      search: '',
+      statusFilter: 'All',
+      categoryFilter: 'All',
+      sortBy: 'savingsPctDesc',
+      viewMode: 'cards',
+      selectedAnalyticsId: 'mbp-14-m6',
+      lastSyncedAt: 'Nov 26, 2026 · 7:41 PM'
+    };
+
+    let chartInstances = {};
+
+    function formatNowTimestamp() {
+      const now = new Date();
+      const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return `${datePart} · ${timePart}`;
+    }
+
+    function formatIsoDateTime() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+
+    function buildDefaultHistory6m(msrp, bestPrice, low6m, high6m) {
+      const m = Number(msrp) || Number(bestPrice) || 0;
+      const b = Number(bestPrice) || m;
+      const hi = Number(high6m) || m;
+      const lo = Number(low6m) || b;
+      const mid = Number(((hi + lo) / 2).toFixed(2));
+      return [
+        { label: 'Jun (-5m)', price: hi },
+        { label: 'Jul (-4m)', price: mid },
+        { label: 'Aug (-3m)', price: hi },
+        { label: 'Sep (-2m)', price: mid },
+        { label: 'Oct (-1m)', price: lo },
+        { label: 'Now', price: b }
+      ];
+    }
+
+    function getItemHistory6m(item) {
+      if (Array.isArray(item.priceHistory6m) && item.priceHistory6m.length > 0) {
+        return item.priceHistory6m;
+      }
+      return buildDefaultHistory6m(item.msrp, item.bestPrice, item.low6m, item.high6m);
+    }
+
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        const savedSync = localStorage.getItem(SYNC_KEY);
+        if (savedSync) state.lastSyncedAt = savedSync;
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            state.items = parsed;
+            if (!state.items.some(i => i.id === state.selectedAnalyticsId)) {
+              state.selectedAnalyticsId = state.items[0].id;
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        // Fallback to initial items if localStorage is blocked
+      }
+      state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
+      state.lastSyncedAt = 'Nov 26, 2026 · 7:41 PM';
+    }
+
+    function saveState(updateSync = false) {
+      if (updateSync) {
+        state.lastSyncedAt = formatNowTimestamp();
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
+        localStorage.setItem(SYNC_KEY, state.lastSyncedAt);
+      } catch (e) {
+        // Ignore storage errors in sandboxed environments
+      }
+    }
+
+    function fmtCurrency(val) {
+      const n = Number(val);
+      if (Number.isNaN(n)) return '$0.00';
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function calcSavings(item) {
+      const msrp = Number(item.msrp) || 0;
+      const best = Number(item.bestPrice) || 0;
+      const dollar = Math.max(0, msrp - best);
+      const pct = msrp > 0 ? (dollar / msrp) * 100 : 0;
+      return { dollar, pct };
+    }
+
+    function calcTrend(item) {
+      const hist = getItemHistory6m(item);
+      if (!hist || hist.length < 2) return { dir: 'flat', pct: 0, diff: 0, label: '0.0% Flat' };
+      const start = Number(hist[0].price) || 0;
+      const end = Number(item.bestPrice ?? hist[hist.length - 1].price) || 0;
+      const diff = end - start;
+      const pct = start > 0 ? (diff / start) * 100 : 0;
+      if (diff < -0.01) {
+        return { dir: 'down', pct, diff, label: `↓ ${Math.abs(pct).toFixed(1)}% (${fmtCurrency(Math.abs(diff))} drop)` };
+      }
+      if (diff > 0.01) {
+        return { dir: 'up', pct, diff, label: `↑ +${pct.toFixed(1)}% (+${fmtCurrency(diff)})` };
+      }
+      return { dir: 'flat', pct: 0, diff: 0, label: '→ 0.0% Flat' };
+    }
+
+    function trendBadgeHTML(item) {
+      const t = calcTrend(item);
+      if (t.dir === 'down') {
+        return `<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20"><i data-lucide="trending-down" class="h-3 w-3"></i>${escapeHtml(t.label)}</span>`;
+      }
+      if (t.dir === 'up') {
+        return `<span class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-600/20"><i data-lucide="trending-up" class="h-3 w-3"></i>${escapeHtml(t.label)}</span>`;
+      }
+      return `<span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600"><i data-lucide="minus" class="h-3 w-3"></i>${escapeHtml(t.label)}</span>`;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      toastMsg.textContent = msg;
+      toast.classList.remove('translate-y-4', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-4', 'opacity-0');
+      }, 2400);
+    }
+
+    function copyText(text, label) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(`Copied "${text}" (${label})`);
+        }).catch(() => fallbackCopy(text, label));
+      } else {
+        fallbackCopy(text, label);
+      }
+    }
+
+    function fallbackCopy(text, label) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast(`Copied "${text}" (${label})`);
+      } catch (e) {
+        showToast('Could not copy automatically');
+      }
+      document.body.removeChild(ta);
+    }
+
+    function getFilteredItems() {
+      const q = state.search.trim().toLowerCase();
+      let list = state.items.filter(item => {
+        if (state.statusFilter !== 'All' && item.status !== state.statusFilter) return false;
+        if (state.categoryFilter !== 'All' && item.category !== state.categoryFilter) return false;
+        if (q) {
+          const hay = [item.name, item.config, item.retailer, item.promoCode, item.couponDetails, item.category, item.whenToBuy]
+            .filter(Boolean).join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      list.sort((a, b) => {
+        const sa = calcSavings(a);
+        const sb = calcSavings(b);
+        switch (state.sortBy) {
+          case 'savingsPctDesc': return sb.pct - sa.pct;
+          case 'savingsDollarDesc': return sb.dollar - sa.dollar;
+          case 'priceAsc': return (Number(a.bestPrice) || 0) - (Number(b.bestPrice) || 0);
+          case 'priceDesc': return (Number(b.bestPrice) || 0) - (Number(a.bestPrice) || 0);
+          case 'nameAsc': return a.name.localeCompare(b.name);
+          default: return 0;
+        }
+      });
+      return list;
+    }
+
+    function whenToBuyBadgeClass(verdict) {
+      const v = String(verdict || '').toLowerCase();
+      if (v.includes('buy now')) return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20';
+      if (v.includes('wait')) return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20';
+      return 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-600/20';
+    }
+
+    function renderKPIs() {
+      const activePool = state.items.filter(i => i.status !== 'Purchased');
+      const totalMsrp = activePool.reduce((acc, i) => acc + (Number(i.msrp) || 0), 0);
+      const totalBest = activePool.reduce((acc, i) => acc + (Number(i.bestPrice) || 0), 0);
+      const totalSaved = Math.max(0, totalMsrp - totalBest);
+      const avgPct = totalMsrp > 0 ? (totalSaved / totalMsrp) * 100 : 0;
+      const maxPct = activePool.reduce((m, i) => Math.max(m, calcSavings(i).pct), 0);
+      const activeDealsCount = state.items.filter(i => i.status === 'Deal Active').length;
+      const targetHitsCount = activePool.filter(i => i.targetPrice && Number(i.bestPrice) <= Number(i.targetPrice)).length;
+
+      const kpis = [
+        { label: 'Total Wishlist Value', value: fmtCurrency(totalMsrp), sub: `${activePool.length} active items`, icon: 'shopping-bag', tone: 'text-slate-900', bg: 'bg-slate-100 text-slate-600' },
+        { label: 'Current Best Value', value: fmtCurrency(totalBest), sub: `${avgPct.toFixed(1)}% below MSRP`, icon: 'sparkles', tone: 'text-indigo-700', bg: 'bg-indigo-50 text-indigo-600' },
+        { label: 'Total Savings ($)', value: fmtCurrency(totalSaved), sub: 'Across tracked deals', icon: 'piggy-bank', tone: 'text-emerald-700', bg: 'bg-emerald-50 text-emerald-600' },
+        { label: 'Max Savings Rate', value: `${maxPct.toFixed(1)}%`, sub: 'Highest item discount', icon: 'percent', tone: 'text-amber-700', bg: 'bg-amber-50 text-amber-600' },
+        { label: 'Active Deals', value: `${activeDealsCount}`, sub: `${targetHitsCount} target price hit${targetHitsCount === 1 ? '' : 's'}`, icon: 'flame', tone: 'text-rose-700', bg: 'bg-rose-50 text-rose-600' }
+      ];
+
+      const strip = document.getElementById('kpi-strip');
+      strip.innerHTML = kpis.map(k => `
+        <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">${k.label}</span>
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg ${k.bg}">
+              <i data-lucide="${k.icon}" class="h-3.5 w-3.5"></i>
+            </span>
+          </div>
+          <div class="mt-2 text-xl font-extrabold tabular-nums ${k.tone} sm:text-2xl">${k.value}</div>
+          <div class="mt-0.5 text-xs text-slate-500">${k.sub}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderStatusPills() {
+      const counts = {
+        All: state.items.length,
+        'Deal Active': state.items.filter(i => i.status === 'Deal Active').length,
+        Monitoring: state.items.filter(i => i.status === 'Monitoring').length,
+        Purchased: state.items.filter(i => i.status === 'Purchased').length
+      };
+      const container = document.getElementById('status-pills');
+      container.innerHTML = Object.entries(counts).map(([label, count]) => {
+        const active = state.statusFilter === label;
+        const cls = active
+          ? 'bg-indigo-600 text-white shadow-sm'
+          : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70';
+        return `
+          <button
+            type="button"
+            data-status="${label}"
+            class="status-pill inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${cls}"
+          >
+            <span>${label}</span>
+            <span class="rounded-full ${active ? 'bg-indigo-500 text-white' : 'bg-white text-slate-600'} px-1.5 py-0.2 text-[10px]">${count}</span>
+          </button>
+        `;
+      }).join('');
+
+      container.querySelectorAll('.status-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.statusFilter = btn.dataset.status;
+          renderAll();
+        });
+      });
+    }
+
+    function updateViewTabs() {
+      document.querySelectorAll('.view-tab').forEach(btn => {
+        const active = btn.dataset.view === state.viewMode;
+        if (active) {
+          btn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+          btn.classList.remove('text-slate-600', 'hover:text-slate-900');
+        } else {
+          btn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+          btn.classList.add('text-slate-600', 'hover:text-slate-900');
+        }
+      });
+    }
+
+    function statusBadgeHTML(item) {
+      if (item.status === 'Purchased') {
+        return `<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700"><i data-lucide="check-circle" class="h-3 w-3 text-slate-500"></i> Purchased</span>`;
+      }
+      const isTargetHit = item.targetPrice && Number(item.bestPrice) <= Number(item.targetPrice);
+      if (item.status === 'Deal Active') {
+        return `
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Deal Active
+            </span>
+            ${isTargetHit ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20"><i data-lucide="bell-ring" class="h-3 w-3"></i> Target Hit</span>` : ''}
+          </div>
+        `;
+      }
+      return `<span class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-600/20"><i data-lucide="eye" class="h-3 w-3"></i> Monitoring</span>`;
+    }
+
+    function renderCardsView(items) {
+      if (items.length === 0) {
+        return `
+          <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+            <i data-lucide="search-x" class="mx-auto h-8 w-8 text-slate-400"></i>
+            <h3 class="mt-3 text-sm font-semibold text-slate-900">No wishlist items match your filters</h3>
+            <p class="mt-1 text-xs text-slate-500">Try clearing your search or switching status filters.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          ${items.map(item => {
+            const { dollar, pct } = calcSavings(item);
+            const hasPromoCode = item.promoCode && item.promoCode.trim() !== '';
+            const offersCount = Array.isArray(item.offers) ? item.offers.length : 0;
+            const whenVerdict = item.whenToBuy || (dollar > 0 ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected');
+            return `
+              <article class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition hover:border-indigo-200 hover:shadow-md">
+                <div class="space-y-3">
+                  <div class="flex items-start justify-between gap-2">
+                    <span class="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">${escapeHtml(item.category)}</span>
+                    ${statusBadgeHTML(item)}
+                  </div>
+
+                  <div>
+                    <h3 class="text-base font-bold leading-snug text-slate-900">${escapeHtml(item.name)}</h3>
+                    <p class="mt-1 line-clamp-2 text-xs text-slate-500">${escapeHtml(item.config || 'Standard configuration')}</p>
+                  </div>
+
+                  <!-- Price Box -->
+                  <div class="flex items-baseline justify-between rounded-xl bg-slate-50 px-3.5 py-2.5">
+                    <div>
+                      <div class="text-[11px] font-medium text-slate-500">Best Price · ${escapeHtml(item.retailer)}</div>
+                      <div class="mt-0.5 flex items-baseline gap-2">
+                        <span class="text-2xl font-extrabold tabular-nums text-slate-900">${fmtCurrency(item.bestPrice)}</span>
+                        ${dollar > 0 ? `<span class="text-xs tabular-nums text-slate-400 line-through">${fmtCurrency(item.msrp)}</span>` : ''}
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      ${dollar > 0 ? `
+                        <span class="inline-flex items-center rounded-lg bg-emerald-100/80 px-2 py-1 text-xs font-bold tabular-nums text-emerald-800">
+                          -${pct.toFixed(1)}% (${fmtCurrency(dollar)})
+                        </span>
+                      ` : `
+                        <span class="inline-flex items-center rounded-lg bg-slate-200/70 px-2 py-1 text-xs font-semibold text-slate-600">
+                          At MSRP
+                        </span>
+                      `}
+                    </div>
+                  </div>
+
+                  <!-- Prediction, Trend & When to Buy -->
+                  <div class="rounded-xl bg-slate-50/80 border border-slate-200/70 px-3 py-2 text-xs space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="font-semibold text-slate-600">6-Mo Trend:</span>
+                      ${trendBadgeHTML(item)}
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="font-semibold text-slate-600">When to Buy:</span>
+                      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${whenToBuyBadgeClass(whenVerdict)}">${escapeHtml(whenVerdict)}</span>
+                    </div>
+                    ${item.projection ? `<p class="text-[11px] text-slate-500 line-clamp-2"><span class="font-medium text-slate-700">Forecast:</span> ${escapeHtml(item.projection)}</p>` : ''}
+                  </div>
+
+                  <!-- Promo / Coupon -->
+                  <div class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs">
+                    <div class="min-w-0 flex-1">
+                      <span class="font-semibold text-slate-700">Promo: </span>
+                      <span class="text-slate-600">${escapeHtml(item.couponDetails || 'No active promo code')}</span>
+                    </div>
+                    ${hasPromoCode ? `
+                      <button
+                        type="button"
+                        data-copy-code="${escapeHtml(item.promoCode)}"
+                        data-copy-label="${escapeHtml(item.name)}"
+                        class="copy-code-btn inline-flex shrink-0 items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 transition hover:bg-indigo-100"
+                      >
+                        <i data-lucide="copy" class="h-3 w-3"></i>
+                        <span>${escapeHtml(item.promoCode)}</span>
+                      </button>
+                    ` : ''}
+                  </div>
+
+                  <!-- Target Price Alert Control & Synced Time -->
+                  <div class="flex items-center justify-between gap-2 text-xs">
+                    <div>
+                      <label class="font-medium text-slate-500" for="target-${item.id}">Target Alert:</label>
+                      <div class="text-[10px] text-slate-400">Checked ${escapeHtml(item.lastChecked || '2026-11-26')}</div>
+                    </div>
+                    <div class="relative w-28">
+                      <span class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">$</span>
+                      <input
+                        id="target-${item.id}"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value="${item.targetPrice || ''}"
+                        placeholder="Set target"
+                        data-target-id="${item.id}"
+                        class="target-input w-full rounded-lg border border-slate-200 py-1 pl-6 pr-2 text-right text-xs font-semibold tabular-nums text-slate-800 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Card Footer Actions -->
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                  <div class="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      data-detail-id="${item.id}"
+                      class="detail-btn inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                    >
+                      <i data-lucide="line-chart" class="h-3.5 w-3.5"></i>
+                      <span>6-Mo Graph &amp; Offers${offersCount ? ` (${offersCount})` : ''}</span>
+                    </button>
+                    ${item.url ? `
+                      <a
+                        href="${escapeHtml(item.url)}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                      >
+                        <span>Deal</span>
+                        <i data-lucide="external-link" class="h-3 w-3"></i>
+                      </a>
+                    ` : ''}
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="${item.status === 'Purchased' ? 'Reactivate' : 'Mark Purchased'}"
+                      data-toggle-purchased="${item.id}"
+                      class="toggle-purchased-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"
+                    >
+                      <i data-lucide="${item.status === 'Purchased' ? 'undo-2' : 'check-square'}" class="h-4 w-4"></i>
+                    </button>
+                    <button
+                      type="button"
+                      title="Edit Item"
+                      data-edit-id="${item.id}"
+                      class="edit-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <i data-lucide="pencil" class="h-4 w-4"></i>
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete Item"
+                      data-delete-id="${item.id}"
+                      class="delete-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    >
+                      <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    </button>
+                  </div>
+                </div>
+              </article>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function renderTableView(items) {
+      if (items.length === 0) {
+        return renderCardsView(items);
+      }
+      return `
+        <div class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+              <thead class="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th class="px-4 py-3">Item &amp; Config</th>
+                  <th class="px-4 py-3 text-right">MSRP</th>
+                  <th class="px-4 py-3 text-right">Best Price</th>
+                  <th class="px-4 py-3 text-right">Savings</th>
+                  <th class="px-4 py-3">Best Retailer</th>
+                  <th class="px-4 py-3">Promo / Coupon</th>
+                  <th class="px-4 py-3">When to Buy &amp; Forecast</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                ${items.map(item => {
+                  const { dollar, pct } = calcSavings(item);
+                  const whenVerdict = item.whenToBuy || (dollar > 0 ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected');
+                  return `
+                    <tr class="transition hover:bg-slate-50/70">
+                      <td class="max-w-xs px-4 py-3">
+                        <div class="font-bold text-slate-900">${escapeHtml(item.name)}</div>
+                        <div class="mt-0.5 truncate text-[11px] text-slate-500">${escapeHtml(item.config || '')}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-500">${fmtCurrency(item.msrp)}</td>
+                      <td class="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-slate-900">${fmtCurrency(item.bestPrice)}</td>
+                      <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                        ${dollar > 0 ? `<span class="font-semibold text-emerald-700">${fmtCurrency(dollar)} (${pct.toFixed(1)}%)</span>` : `<span class="text-slate-400">—</span>`}
+                      </td>
+                      <td class="px-4 py-3 font-medium text-slate-700">${escapeHtml(item.retailer)}</td>
+                      <td class="max-w-xs px-4 py-3 text-slate-600">
+                        ${item.promoCode ? `<button type="button" data-copy-code="${escapeHtml(item.promoCode)}" data-copy-label="${escapeHtml(item.name)}" class="copy-code-btn mb-1 inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700 hover:bg-indigo-100"><i data-lucide="copy" class="h-2.5 w-2.5"></i>${escapeHtml(item.promoCode)}</button><br/>` : ''}
+                        <span class="text-[11px]">${escapeHtml(item.couponDetails || '—')}</span>
+                      </td>
+                      <td class="max-w-xs px-4 py-3 space-y-1">
+                        <div>${trendBadgeHTML(item)}</div>
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${whenToBuyBadgeClass(whenVerdict)}">${escapeHtml(whenVerdict)}</span>
+                        <div class="mt-1 truncate text-[11px] text-slate-500">${escapeHtml(item.projection || '')}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3">${statusBadgeHTML(item)}</td>
+                      <td class="whitespace-nowrap px-4 py-3 text-right">
+                        <div class="inline-flex items-center gap-1">
+                          <button type="button" data-detail-id="${item.id}" class="detail-btn rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200">Graph</button>
+                          ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">Link</a>` : ''}
+                          <button type="button" data-edit-id="${item.id}" class="edit-btn rounded p-1 text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="h-3.5 w-3.5"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAnalyticsSection() {
+      const optionsHtml = state.items.map(i => `
+        <option value="${escapeHtml(i.id)}" ${i.id === state.selectedAnalyticsId ? 'selected' : ''}>${escapeHtml(i.name)}</option>
+      `).join('');
+
+      return `
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div class="mb-3 flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Best Price vs. Savings ($) by Item</h3>
+                <p class="text-xs text-slate-500">Current best price stacked with discount saved off MSRP</p>
+              </div>
+              <span class="rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Live Portfolio</span>
+            </div>
+            <div class="relative h-72">
+              <canvas id="chart-savings"></canvas>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Last 6 Months Price History</h3>
+                <p class="text-xs text-slate-500">Select any current or newly added item to view its 6-month trend</p>
+              </div>
+              <select
+                id="analytics-item-select"
+                aria-label="Select item for 6-month price history"
+                class="max-w-xs rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none"
+              >
+                ${optionsHtml}
+              </select>
+            </div>
+            <div class="relative h-72">
+              <canvas id="chart-forecast"></canvas>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function initCharts() {
+      if (chartInstances.savings) { try { chartInstances.savings.destroy(); } catch (e) {} }
+      if (chartInstances.forecast) { try { chartInstances.forecast.destroy(); } catch (e) {} }
+
+      const savingsCanvas = document.getElementById('chart-savings');
+      if (savingsCanvas && typeof Chart !== 'undefined') {
+        const pool = state.items.filter(i => i.status !== 'Purchased');
+        const labels = pool.map(i => i.name.length > 22 ? i.name.slice(0, 20) + '…' : i.name);
+        const bestData = pool.map(i => Number(i.bestPrice) || 0);
+        const savedData = pool.map(i => calcSavings(i).dollar);
+
+        chartInstances.savings = new Chart(savingsCanvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Best Current Price ($)', data: bestData, backgroundColor: '#4f46e5', borderRadius: 4 },
+              { label: 'Savings vs MSRP ($)', data: savedData, backgroundColor: '#10b981', borderRadius: 4 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+              y: { stacked: true, beginAtZero: true, ticks: { callback: v => '$' + v } }
+            },
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCurrency(ctx.parsed.y)}` } }
+            }
+          }
+        });
+      }
+
+      const forecastCanvas = document.getElementById('chart-forecast');
+      if (forecastCanvas && typeof Chart !== 'undefined') {
+        const selectedItem = state.items.find(i => i.id === state.selectedAnalyticsId) || state.items[0];
+        if (selectedItem) {
+          const hist = getItemHistory6m(selectedItem);
+          const labels = hist.map(p => p.label);
+          const prices = hist.map(p => Number(p.price) || 0);
+          const msrpLine = hist.map(() => Number(selectedItem.msrp) || 0);
+
+          chartInstances.forecast = new Chart(forecastCanvas.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: `${selectedItem.name} ($)`,
+                  data: prices,
+                  borderColor: '#4f46e5',
+                  backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                  tension: 0.3,
+                  fill: true,
+                  pointRadius: 4,
+                  pointBackgroundColor: '#4f46e5'
+                },
+                {
+                  label: 'MSRP ($)',
+                  data: msrpLine,
+                  borderColor: '#94a3b8',
+                  borderDash: [5, 5],
+                  tension: 0,
+                  pointRadius: 0
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                y: { ticks: { callback: v => '$' + v } }
+              },
+              plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCurrency(ctx.parsed.y)}` } }
+              }
+            }
+          });
+        }
+      }
+
+      const sel = document.getElementById('analytics-item-select');
+      if (sel) {
+        sel.addEventListener('change', e => {
+          state.selectedAnalyticsId = e.target.value;
+          initCharts();
+        });
+      }
+    }
+
+    function openDetailModal(id) {
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+
+      document.getElementById('detail-category').textContent = item.category;
+      const whenVerdict = item.whenToBuy || 'Buy Now — Promo Code Active';
+      const whenBadge = document.getElementById('detail-when-badge');
+      whenBadge.textContent = whenVerdict;
+      whenBadge.className = `inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${whenToBuyBadgeClass(whenVerdict)}`;
+
+      document.getElementById('detail-title').textContent = item.name;
+      document.getElementById('detail-config').textContent = `${item.config || ''} · Checked ${item.lastChecked || '2026-11-26'}`;
+
+      const { dollar, pct } = calcSavings(item);
+      const offers = Array.isArray(item.offers) ? item.offers : [];
+      const forecasts = Array.isArray(item.forecasts) ? item.forecasts : [];
+
+      let html = `
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div class="rounded-xl bg-slate-50 p-3.5">
+            <div class="text-[11px] font-semibold uppercase text-slate-500">Best Current Price</div>
+            <div class="mt-1 text-xl font-extrabold text-slate-900">${fmtCurrency(item.bestPrice)}</div>
+            <div class="text-xs text-slate-500">at ${escapeHtml(item.retailer)}</div>
+          </div>
+          <div class="rounded-xl bg-emerald-50 p-3.5">
+            <div class="text-[11px] font-semibold uppercase text-emerald-700">Savings vs MSRP (${fmtCurrency(item.msrp)})</div>
+            <div class="mt-1 text-xl font-extrabold text-emerald-700">${fmtCurrency(dollar)} (${pct.toFixed(1)}%)</div>
+            <div class="text-xs text-emerald-700/80">${escapeHtml(item.couponDetails || 'No promo code needed')}</div>
+          </div>
+          <div class="rounded-xl bg-indigo-50 p-3.5">
+            <div class="text-[11px] font-semibold uppercase text-indigo-700">Prediction &amp; When to Buy</div>
+            <div class="mt-1 text-xs font-bold text-indigo-950">${escapeHtml(whenVerdict)}</div>
+            <div class="mt-0.5 text-xs text-indigo-900/80">${escapeHtml(item.projection || 'No forecast recorded')}</div>
+          </div>
+        </div>
+
+        <!-- Per-Item 6-Month Price Graph -->
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Last 6 Months Price History</h3>
+              <p class="text-xs text-slate-500">${escapeHtml(item.history6m || 'Historical price trajectory vs MSRP')}</p>
+            </div>
+            ${trendBadgeHTML(item)}
+          </div>
+          <div class="relative h-56">
+            <canvas id="detail-history-chart"></canvas>
+          </div>
+          ${item.otherPrices ? `<p class="mt-3 text-xs text-slate-500"><span class="font-semibold text-slate-700">Other Retailers:</span> ${escapeHtml(item.otherPrices)}</p>` : ''}
+        </div>
+      `;
+
+      if (offers.length > 0) {
+        html += `
+          <div>
+            <h3 class="mb-2 text-sm font-bold text-slate-900">Multi-Retailer Offer Breakdown</h3>
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+              <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                <thead class="bg-slate-50 text-[11px] font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th class="px-3 py-2.5">Retailer</th>
+                    <th class="px-3 py-2.5 text-right">Net Price</th>
+                    <th class="px-3 py-2.5">Promo / Coupon</th>
+                    <th class="px-3 py-2.5">Fulfillment &amp; Perks</th>
+                    <th class="px-3 py-2.5 text-right">Link</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  ${offers.map(o => `
+                    <tr>
+                      <td class="px-3 py-2.5 font-semibold text-slate-900">${escapeHtml(o.retailer)}</td>
+                      <td class="whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">${fmtCurrency(o.net)}</td>
+                      <td class="px-3 py-2.5 text-slate-600">${escapeHtml(o.promo)}</td>
+                      <td class="px-3 py-2.5 text-slate-500">
+                        <div>${escapeHtml(o.fulfillment)}</div>
+                        <div class="text-[11px] text-indigo-600">${escapeHtml(o.perks)}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-3 py-2.5 text-right">
+                        <a href="${escapeHtml(o.url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">
+                          <span>View</span>
+                          <i data-lucide="external-link" class="h-3 w-3"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+
+      if (forecasts.length > 0) {
+        html += `
+          <div>
+            <h3 class="mb-2 text-sm font-bold text-slate-900">Forward-Looking Price Projections</h3>
+            <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              ${forecasts.map(f => `
+                <div class="rounded-xl border border-slate-200 p-3 text-xs">
+                  <div class="flex items-center justify-between font-bold text-slate-900">
+                    <span>${escapeHtml(f.window)}</span>
+                    <span class="text-indigo-700">${fmtCurrency(f.low)} – ${fmtCurrency(f.high)}</span>
+                  </div>
+                  <div class="mt-0.5 text-[11px] text-slate-500">${escapeHtml(f.range)} · Probability: ${escapeHtml(f.prob)}</div>
+                  <p class="mt-1.5 text-slate-600">${escapeHtml(f.note)}</p>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById('detail-body').innerHTML = html;
+      const modal = document.getElementById('detail-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // Render per-item 6-month chart inside detail modal
+      if (chartInstances.detail) { try { chartInstances.detail.destroy(); } catch (e) {} }
+      const detailCanvas = document.getElementById('detail-history-chart');
+      if (detailCanvas && typeof Chart !== 'undefined') {
+        const hist = getItemHistory6m(item);
+        const datasets = [
+          {
+            label: 'Price ($)',
+            data: hist.map(p => Number(p.price) || 0),
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79, 70, 229, 0.12)',
+            tension: 0.3,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: '#4f46e5'
+          },
+          {
+            label: 'MSRP ($)',
+            data: hist.map(() => Number(item.msrp) || 0),
+            borderColor: '#94a3b8',
+            borderDash: [5, 5],
+            tension: 0,
+            pointRadius: 0
+          }
+        ];
+        if (item.targetPrice) {
+          datasets.push({
+            label: 'Target Alert ($)',
+            data: hist.map(() => Number(item.targetPrice)),
+            borderColor: '#f59e0b',
+            borderDash: [3, 3],
+            tension: 0,
+            pointRadius: 0
+          });
+        }
+        chartInstances.detail = new Chart(detailCanvas.getContext('2d'), {
+          type: 'line',
+          data: { labels: hist.map(p => p.label), datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+              y: { ticks: { callback: v => '$' + v } }
+            },
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+              tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCurrency(ctx.parsed.y)}` } }
+            }
+          }
+        });
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderOnboardingSiteLinks() {
+      const q = document.getElementById('form-name').value.trim() || 'wishlist item';
+      const container = document.getElementById('onboarding-site-links');
+      container.innerHTML = SEARCH_SITES.map(s => `
+        <a
+          href="${s.url(q)}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-600 hover:text-white"
+        >
+          <span>${escapeHtml(s.name)}</span>
+          <i data-lucide="external-link" class="h-2.5 w-2.5"></i>
+        </a>
+      `).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openFormModal(editId = null) {
+      const form = document.getElementById('item-form');
+      form.reset();
+      document.getElementById('form-id').value = '';
+      if (editId) {
+        const item = state.items.find(i => i.id === editId);
+        if (item) {
+          document.getElementById('form-modal-title').textContent = 'Edit Wishlist Item';
+          document.getElementById('form-id').value = item.id;
+          document.getElementById('form-name').value = item.name;
+          document.getElementById('form-config').value = item.config || '';
+          document.getElementById('form-category').value = item.category || 'Other';
+          document.getElementById('form-status').value = item.status || 'Deal Active';
+          document.getElementById('form-msrp').value = item.msrp;
+          document.getElementById('form-best-price').value = item.bestPrice;
+          document.getElementById('form-target-price').value = item.targetPrice || '';
+          document.getElementById('form-retailer').value = item.retailer || '';
+          document.getElementById('form-promo-code').value = item.promoCode || '';
+          document.getElementById('form-coupon-notes').value = item.couponDetails || '';
+          document.getElementById('form-other-prices').value = item.otherPrices || '';
+          document.getElementById('form-url').value = item.url || '';
+          document.getElementById('form-when-to-buy').value = item.whenToBuy || 'Buy Now — Promo Code Active';
+          document.getElementById('form-projection').value = item.projection || '';
+          const hist = getItemHistory6m(item);
+          const prices = hist.map(p => Number(p.price) || 0);
+          document.getElementById('form-low6m').value = prices.length ? Math.min(...prices) : '';
+          document.getElementById('form-high6m').value = prices.length ? Math.max(...prices) : '';
+        }
+      } else {
+        document.getElementById('form-modal-title').textContent = 'Add Wishlist Item';
+      }
+      renderOnboardingSiteLinks();
+      const modal = document.getElementById('form-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function exportCSV() {
+      const headers = ['Item', 'Configuration', 'Category', 'MSRP', 'Best Current Price', 'Savings ($)', 'Savings (%)', 'Best Retailer', 'Promo Code', 'Coupon Details', 'When to Buy', 'Forecast', 'Status', 'Last Checked', 'Source URL'];
+      const rows = state.items.map(item => {
+        const { dollar, pct } = calcSavings(item);
+        return [
+          item.name,
+          item.config || '',
+          item.category || '',
+          Number(item.msrp).toFixed(2),
+          Number(item.bestPrice).toFixed(2),
+          dollar.toFixed(2),
+          pct.toFixed(1) + '%',
+          item.retailer || '',
+          item.promoCode || '',
+          item.couponDetails || '',
+          item.whenToBuy || '',
+          item.projection || '',
+          item.status,
+          item.lastChecked || '2026-11-26',
+          item.url || ''
+        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+      });
+      const csv = [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'wishlist_deal_tracker.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Exported wishlist_deal_tracker.csv');
+    }
+
+    function parseCSV(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (lines.length < 2) return [];
+      const parseLine = line => {
+        const out = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+            else { inQ = !inQ; }
+          } else if (ch === ',' && !inQ) {
+            out.push(cur.trim()); cur = '';
+          } else { cur += ch; }
+        }
+        out.push(cur.trim());
+        return out;
+      };
+      const hdrs = parseLine(lines[0]).map(h => h.toLowerCase());
+      const idx = name => hdrs.findIndex(h => h.includes(name));
+      const iName = idx('item') !== -1 ? idx('item') : idx('name');
+      const iMsrp = idx('msrp');
+      const iBest = idx('best') !== -1 ? idx('best') : idx('price');
+      const iRet = idx('retailer');
+      const iStat = idx('status');
+      const iConf = idx('config');
+      const iUrl = idx('url');
+      if (iName === -1) return [];
+      return lines.slice(1).map((line, n) => {
+        const cols = parseLine(line);
+        const cleanNum = v => parseFloat(String(v || '0').replace(/[^0-9.]/g, '')) || 0;
+        const msrp = iMsrp !== -1 ? cleanNum(cols[iMsrp]) : 0;
+        const bestPrice = iBest !== -1 ? cleanNum(cols[iBest]) : 0;
+        return {
+          id: 'imp-' + Date.now() + '-' + n,
+          name: cols[iName] || 'Imported Item',
+          config: iConf !== -1 ? cols[iConf] : '',
+          category: 'Other',
+          msrp,
+          bestPrice,
+          retailer: iRet !== -1 ? cols[iRet] : 'Unknown',
+          promoCode: '',
+          couponDetails: '',
+          whenToBuy: bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected',
+          priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, bestPrice, msrp),
+          status: iStat !== -1 && cols[iStat] ? cols[iStat] : 'Deal Active',
+          lastChecked: formatIsoDateTime(),
+          url: iUrl !== -1 ? cols[iUrl] : ''
+        };
+      }).filter(x => x.name && x.bestPrice >= 0);
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function bindDynamicListeners() {
+      document.querySelectorAll('.copy-code-btn').forEach(btn => {
+        btn.addEventListener('click', () => copyText(btn.dataset.copyCode, btn.dataset.copyLabel));
+      });
+      document.querySelectorAll('.detail-btn').forEach(btn => {
+        btn.addEventListener('click', () => openDetailModal(btn.dataset.detailId));
+      });
+      document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => openFormModal(btn.dataset.editId));
+      });
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = state.items.find(i => i.id === btn.dataset.deleteId);
+          state.items = state.items.filter(i => i.id !== btn.dataset.deleteId);
+          if (state.items.length && !state.items.some(i => i.id === state.selectedAnalyticsId)) {
+            state.selectedAnalyticsId = state.items[0].id;
+          }
+          saveState(true);
+          renderAll();
+          if (target) showToast(`Removed "${target.name}"`);
+        });
+      });
+      document.querySelectorAll('.toggle-purchased-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const item = state.items.find(i => i.id === btn.dataset.togglePurchased);
+          if (!item) return;
+          item.status = item.status === 'Purchased' ? 'Deal Active' : 'Purchased';
+          saveState(true);
+          renderAll();
+          showToast(`Marked "${item.name}" as ${item.status}`);
+        });
+      });
+      document.querySelectorAll('.target-input').forEach(inp => {
+        inp.addEventListener('change', () => {
+          const item = state.items.find(i => i.id === inp.dataset.targetId);
+          if (!item) return;
+          const v = parseFloat(inp.value);
+          item.targetPrice = Number.isNaN(v) ? null : v;
+          saveState(true);
+          renderAll();
+        });
+      });
+    }
+
+    function renderAll() {
+      document.getElementById('sync-timestamp').textContent = `Synced ${state.lastSyncedAt}`;
+      renderKPIs();
+      renderStatusPills();
+      updateViewTabs();
+
+      const filtered = getFilteredItems();
+      const main = document.getElementById('main-content');
+
+      if (state.viewMode === 'cards') {
+        main.innerHTML = renderCardsView(filtered) + renderAnalyticsSection();
+      } else if (state.viewMode === 'table') {
+        main.innerHTML = renderTableView(filtered) + renderAnalyticsSection();
+      } else {
+        main.innerHTML = renderAnalyticsSection();
+      }
+
+      bindDynamicListeners();
+      initCharts();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Static listeners
+    document.getElementById('search-input').addEventListener('input', e => {
+      state.search = e.target.value;
+      renderAll();
+    });
+    document.getElementById('category-select').addEventListener('change', e => {
+      state.categoryFilter = e.target.value;
+      renderAll();
+    });
+    document.getElementById('sort-select').addEventListener('change', e => {
+      state.sortBy = e.target.value;
+      renderAll();
+    });
+    document.querySelectorAll('.view-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.viewMode = btn.dataset.view;
+        renderAll();
+      });
+    });
+
+    function parseSheetCSV(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      const parseLine = line => {
+        const out = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+            else { inQ = !inQ; }
+          } else if (ch === ',' && !inQ) {
+            out.push(cur.trim()); cur = '';
+          } else { cur += ch; }
+        }
+        out.push(cur.trim());
+        return out;
+      };
+
+      const rows = lines.map(parseLine);
+      const headerIdx = rows.findIndex(r => r.some(c => c.toLowerCase() === 'item') && r.some(c => c.toLowerCase() === 'msrp'));
+      if (headerIdx === -1) return [];
+
+      const hdrs = rows[headerIdx].map(h => h.toLowerCase());
+      const col = name => hdrs.findIndex(h => h.includes(name));
+      const cItem = hdrs.findIndex(h => h === 'item');
+      const cConfig = col('configuration');
+      const cMsrp = col('msrp');
+      const cBest = col('best current price');
+      const cRetailer = col('best retailer');
+      const cCoupon = col('coupon');
+      const cOther = col('other retailer');
+      const cHist = col('6-month');
+      const cProj = col('projected');
+      const cStatus = col('status');
+      const cChecked = col('last checked');
+      const cUrl = col('source url');
+
+      const cleanNum = v => parseFloat(String(v || '0').replace(/[^0-9.]/g, '')) || 0;
+      const inferCategory = name => {
+        const n = name.toLowerCase();
+        if (n.includes('apple') || n.includes('macbook') || n.includes('airpods') || n.includes('sony') || n.includes('ipad')) return 'Tech & Apple';
+        if (n.includes('sock') || n.includes('bombas') || n.includes('shirt') || n.includes('shoe')) return 'Apparel';
+        if (n.includes('brio') || n.includes('toy') || n.includes('lego') || n.includes('train')) return 'Kids & Toys';
+        if (n.includes('headrest') || n.includes('soap') || n.includes('chair') || n.includes('desk')) return 'Home & Office';
+        return 'Other';
+      };
+
+      const parsed = [];
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const r = rows[i];
+        const name = cItem !== -1 ? (r[cItem] || '').trim() : '';
+        if (!name) continue;
+        const msrp = cMsrp !== -1 ? cleanNum(r[cMsrp]) : 0;
+        const bestPrice = cBest !== -1 ? cleanNum(r[cBest]) : 0;
+        const couponDetails = cCoupon !== -1 ? (r[cCoupon] || '').trim() : '';
+        const statusRaw = cStatus !== -1 ? (r[cStatus] || '').trim() : 'Deal Active';
+        const status = statusRaw.toLowerCase().includes('monitor') ? 'Monitoring' : (statusRaw.toLowerCase().includes('purchas') ? 'Purchased' : 'Deal Active');
+        const history6m = cHist !== -1 ? (r[cHist] || '').trim() : '';
+        const projection = cProj !== -1 ? (r[cProj] || '').trim() : '';
+        const urlVal = cUrl !== -1 ? (r[cUrl] || '').trim() : '';
+        const validUrl = urlVal.startsWith('http') ? urlVal : '';
+
+        parsed.push({
+          name,
+          config: cConfig !== -1 ? (r[cConfig] || '').trim() : '',
+          category: inferCategory(name),
+          msrp,
+          bestPrice,
+          retailer: cRetailer !== -1 ? (r[cRetailer] || '').trim() : '',
+          couponDetails,
+          otherPrices: cOther !== -1 ? (r[cOther] || '').trim() : '',
+          history6m,
+          projection,
+          status,
+          lastChecked: cChecked !== -1 && r[cChecked] ? r[cChecked].trim() : formatIsoDateTime(),
+          url: validUrl
+        });
+      }
+      return parsed;
+    }
+
+    async function syncFromGoogleSheet(isManual = false) {
+      const btn = document.getElementById('btn-sync-now');
+      if (btn) btn.classList.add('opacity-60');
+      try {
+        const resp = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const csvText = await resp.text();
+        const sheetItems = parseSheetCSV(csvText);
+        if (sheetItems.length === 0) throw new Error('No items parsed');
+
+        const existingMap = new Map(state.items.map(i => [i.name.trim().toLowerCase(), i]));
+        const merged = sheetItems.map((si, idx) => {
+          const prev = existingMap.get(si.name.trim().toLowerCase());
+          if (prev) {
+            const updatedHist = Array.isArray(prev.priceHistory6m) && prev.priceHistory6m.length > 0
+              ? prev.priceHistory6m.map((pt, pIdx, arr) => pIdx === arr.length - 1 ? { ...pt, price: si.bestPrice } : pt)
+              : buildDefaultHistory6m(si.msrp, si.bestPrice, si.bestPrice, si.msrp);
+            return {
+              ...prev,
+              config: si.config || prev.config,
+              msrp: si.msrp || prev.msrp,
+              bestPrice: si.bestPrice,
+              retailer: si.retailer || prev.retailer,
+              couponDetails: si.couponDetails || prev.couponDetails,
+              otherPrices: si.otherPrices || prev.otherPrices,
+              history6m: si.history6m || prev.history6m,
+              projection: si.projection || prev.projection,
+              status: si.status || prev.status,
+              lastChecked: si.lastChecked || prev.lastChecked,
+              url: si.url || prev.url,
+              priceHistory6m: updatedHist
+            };
+          }
+          return {
+            id: 'sheet-' + Date.now() + '-' + idx,
+            ...si,
+            targetPrice: null,
+            promoCode: '',
+            whenToBuy: si.bestPrice < si.msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected',
+            priceHistory6m: buildDefaultHistory6m(si.msrp, si.bestPrice, si.bestPrice, si.msrp),
+            offers: [],
+            forecasts: []
+          };
+        });
+
+        // Keep any manually added local-only items not in the sheet
+        const sheetNames = new Set(sheetItems.map(s => s.name.trim().toLowerCase()));
+        const localOnly = state.items.filter(i => !sheetNames.has(i.name.trim().toLowerCase()) && !String(i.id).startsWith('sheet-'));
+        state.items = [...merged, ...localOnly];
+        if (!state.items.some(i => i.id === state.selectedAnalyticsId) && state.items.length > 0) {
+          state.selectedAnalyticsId = state.items[0].id;
+        }
+        saveState(true);
+        renderAll();
+        if (isManual) showToast(`Synced ${sheetItems.length} items from Google Sheet`);
+      } catch (err) {
+        if (isManual) {
+          saveState(true);
+          renderAll();
+          showToast(`Timestamp updated (${state.lastSyncedAt})`);
+        }
+      } finally {
+        if (btn) btn.classList.remove('opacity-60');
+      }
+    }
+
+    document.getElementById('btn-sync-now').addEventListener('click', () => {
+      syncFromGoogleSheet(true);
+    });
+
+    document.getElementById('form-name').addEventListener('input', renderOnboardingSiteLinks);
+    document.getElementById('btn-add-item').addEventListener('click', () => openFormModal(null));
+    document.getElementById('btn-export').addEventListener('click', exportCSV);
+    document.getElementById('btn-import').addEventListener('click', () => {
+      document.getElementById('import-error').classList.add('hidden');
+      const modal = document.getElementById('import-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    });
+    document.getElementById('btn-reset-data').addEventListener('click', () => {
+      state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
+      state.selectedAnalyticsId = state.items[0].id;
+      saveState(true);
+      renderAll();
+      showToast('Restored original Google Sheet items');
+    });
+
+    document.getElementById('close-detail-modal').addEventListener('click', () => closeModal('detail-modal'));
+    document.getElementById('detail-modal').addEventListener('click', e => {
+      if (e.target.id === 'detail-modal') closeModal('detail-modal');
+    });
+
+    document.getElementById('close-form-modal').addEventListener('click', () => closeModal('form-modal'));
+    document.getElementById('cancel-form-modal').addEventListener('click', () => closeModal('form-modal'));
+    document.getElementById('form-modal').addEventListener('click', e => {
+      if (e.target.id === 'form-modal') closeModal('form-modal');
+    });
+
+    document.getElementById('close-import-modal').addEventListener('click', () => closeModal('import-modal'));
+    document.getElementById('cancel-import-modal').addEventListener('click', () => closeModal('import-modal'));
+    document.getElementById('import-modal').addEventListener('click', e => {
+      if (e.target.id === 'import-modal') closeModal('import-modal');
+    });
+
+    document.getElementById('import-file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        document.getElementById('import-textarea').value = ev.target.result;
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById('confirm-import-btn').addEventListener('click', () => {
+      const raw = document.getElementById('import-textarea').value.trim();
+      const errBox = document.getElementById('import-error');
+      errBox.classList.add('hidden');
+      if (!raw) {
+        errBox.textContent = 'Please paste JSON or CSV data, or upload a file.';
+        errBox.classList.remove('hidden');
+        return;
+      }
+      let imported = [];
+      if (raw.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(raw);
+          imported = parsed.map((x, idx) => {
+            const msrp = Number(x.msrp) || 0;
+            const bestPrice = Number(x.bestPrice) || 0;
+            return {
+              id: x.id || 'json-' + Date.now() + '-' + idx,
+              name: x.name || 'Imported Item',
+              config: x.config || '',
+              category: x.category || 'Other',
+              msrp,
+              bestPrice,
+              targetPrice: x.targetPrice ? Number(x.targetPrice) : null,
+              retailer: x.retailer || 'Unknown',
+              promoCode: x.promoCode || '',
+              couponDetails: x.couponDetails || '',
+              whenToBuy: x.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
+              priceHistory6m: x.priceHistory6m || buildDefaultHistory6m(msrp, bestPrice, bestPrice, msrp),
+              status: x.status || 'Deal Active',
+              lastChecked: formatIsoDateTime(),
+              url: x.url || ''
+            };
+          });
+        } catch (err) {
+          errBox.textContent = 'Invalid JSON format.';
+          errBox.classList.remove('hidden');
+          return;
+        }
+      } else {
+        imported = parseCSV(raw);
+      }
+
+      if (imported.length === 0) {
+        errBox.textContent = 'No valid items found in input.';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      state.items = [...imported, ...state.items];
+      state.selectedAnalyticsId = state.items[0].id;
+      saveState(true);
+      closeModal('import-modal');
+      renderAll();
+      showToast(`Imported ${imported.length} item${imported.length === 1 ? '' : 's'}`);
+    });
+
+    document.getElementById('item-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const existingId = document.getElementById('form-id').value;
+      const targetRaw = document.getElementById('form-target-price').value;
+      const msrp = parseFloat(document.getElementById('form-msrp').value) || 0;
+      const bestPrice = parseFloat(document.getElementById('form-best-price').value) || 0;
+      const low6m = parseFloat(document.getElementById('form-low6m').value);
+      const high6m = parseFloat(document.getElementById('form-high6m').value);
+
+      const payload = {
+        id: existingId || 'item-' + Date.now(),
+        name: document.getElementById('form-name').value.trim(),
+        config: document.getElementById('form-config').value.trim(),
+        category: document.getElementById('form-category').value,
+        status: document.getElementById('form-status').value,
+        msrp,
+        bestPrice,
+        targetPrice: targetRaw ? parseFloat(targetRaw) : null,
+        retailer: document.getElementById('form-retailer').value.trim(),
+        promoCode: document.getElementById('form-promo-code').value.trim(),
+        couponDetails: document.getElementById('form-coupon-notes').value.trim(),
+        otherPrices: document.getElementById('form-other-prices').value.trim(),
+        url: document.getElementById('form-url').value.trim(),
+        whenToBuy: document.getElementById('form-when-to-buy').value,
+        projection: document.getElementById('form-projection').value.trim(),
+        low6m: Number.isNaN(low6m) ? null : low6m,
+        high6m: Number.isNaN(high6m) ? null : high6m,
+        lastChecked: formatIsoDateTime()
+      };
+
+      if (existingId) {
+        const idx = state.items.findIndex(i => i.id === existingId);
+        if (idx !== -1) {
+          const prev = state.items[idx];
+          const updatedHist = (!Number.isNaN(low6m) || !Number.isNaN(high6m))
+            ? buildDefaultHistory6m(msrp, bestPrice, low6m, high6m)
+            : prev.priceHistory6m;
+          state.items[idx] = { ...prev, ...payload, priceHistory6m: updatedHist };
+        }
+        showToast(`Updated "${payload.name}"`);
+      } else {
+        payload.priceHistory6m = buildDefaultHistory6m(msrp, bestPrice, low6m, high6m);
+        payload.history6m = (!Number.isNaN(low6m) && !Number.isNaN(high6m))
+          ? `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-month range)`
+          : `${fmtCurrency(bestPrice)} - ${fmtCurrency(msrp)} (6-month baseline)`;
+        state.items.unshift(payload);
+        state.selectedAnalyticsId = payload.id;
+        showToast(`Added "${payload.name}"`);
+      }
+      saveState(true);
+      closeModal('form-modal');
+      renderAll();
+    });
+
+    // Initialize
+    loadState();
+    renderAll();
+    syncFromGoogleSheet(false);
+  </script>
+</body>
+</html>
