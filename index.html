@@ -2384,7 +2384,13 @@ Return ONLY valid JSON with these keys:
       setAiModalStatus('Gemini AI is searching live prices, coupons & buy timing...');
 
       const prompt = `The user wants to add a product to their Wishlist Deals Tracker: "${raw}".
-Search for or look up current US retail pricing, active deals/coupons, and 6-month price history for this product.
+Follow this strict multi-retailer deal-hunting standard:
+1. Search across ALL major US retailers (Amazon, Costco, Target, Walmart, Best Buy, B&H Photo, Apple Store, and the official brand site), Slickdeals.net, and active coupon/promo code sources.
+2. Compare prices across retailers and apply any active promo codes, in-cart coupons, or instant holiday discounts to find the TRUE LOWEST current net price (not just MSRP).
+3. List at least 2-3 competing retailer prices in "otherPrices" (e.g. "Amazon $X | Best Buy $Y | Target $Z").
+4. Include any active promo code, coupon, or card/cashback perk in "promoCode" and "couponDetails".
+5. Provide the 6-month price range ("low6m", "high6m") and a concrete "whenToBuy" verdict + 3-6 month "projection".
+
 Return ONLY a raw JSON object (no markdown, no explanation) with these exact keys:
 {
   "name": "clean product title",
