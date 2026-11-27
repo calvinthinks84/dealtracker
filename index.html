@@ -225,17 +225,52 @@
           rel="noopener noreferrer"
           class="font-medium text-indigo-600 hover:underline"
         >Wish List Deal Tracker Google Sheet</a>.
-        Local edits &amp; target prices are saved in your browser.
+        All items, categories, notes, and price changes sync directly to the Google Sheet (no local item storage).
       </p>
       <button
         id="btn-reset-data"
         type="button"
-        class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-rose-600"
+        class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-indigo-600"
       >
-        <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i>
-        <span>Reset to Sheet Defaults</span>
+        <i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i>
+        <span>Reload from Sheet</span>
       </button>
     </footer>
+
+    <!-- Standard Query Criteria & AI Disclaimer -->
+    <section class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm space-y-4">
+      <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <i data-lucide="shield-check" class="h-4 w-4 text-indigo-600"></i>
+          <span>Standard Deal Query Criteria</span>
+        </h2>
+        <span class="text-[11px] font-medium text-slate-400">Applied to every price check &amp; AI Smart Add</span>
+      </div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+        <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+          <div class="font-semibold text-slate-800">1. Live Deal Price Validation</div>
+          <p class="mt-1 text-slate-500 leading-relaxed">MSRP and Best Current Price are validated against live retailer and deal prices rather than estimates.</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+          <div class="font-semibold text-slate-800">2. Direct Product Links</div>
+          <p class="mt-1 text-slate-500 leading-relaxed">Deal hyperlinks point directly to the item&apos;s retailer product page (no blog posts, promo terms, or search pages).</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+          <div class="font-semibold text-slate-800">3. Net Price &amp; Cashback Stacking</div>
+          <p class="mt-1 text-slate-500 leading-relaxed">Factors in active promo codes, coupons, Rakuten cash back, and card perks (Target RedCard 5%, Venture X, Sapphire Reserve).</p>
+        </div>
+        <div class="rounded-xl bg-slate-50 p-3 border border-slate-100">
+          <div class="font-semibold text-slate-800">4. 6-Month History &amp; Timing</div>
+          <p class="mt-1 text-slate-500 leading-relaxed">Benchmarks current prices against 6-month lows/highs and seasonal cycles to flag Buy Now vs. Wait.</p>
+        </div>
+      </div>
+      <div class="rounded-xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 text-xs text-amber-900 flex items-start gap-2.5">
+        <i data-lucide="alert-triangle" class="h-4 w-4 text-amber-600 shrink-0 mt-0.5"></i>
+        <p class="leading-relaxed">
+          <span class="font-semibold">Disclaimer:</span> These deals, prices, promo codes, cashback rates, and forecasts are generated via AI-assisted web queries and may change without notice. Always verify the final price, stock, and promo terms directly on the retailer&apos;s product page and checkout cart before purchasing.
+        </p>
+      </div>
+    </section>
   </main>
 
   <!-- Offer & Price Intelligence Modal -->
@@ -625,8 +660,6 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'wishlist_deal_tracker_v2';
-    const SYNC_KEY = 'wishlist_deal_tracker_sync_v2';
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTM5-n2kRQJMAGyjCJwArgrEOmSwf1G6yNhejZ86kXB5PyGGLaNz92ACW0uqf83NVN2F63e-JUmmARb/pub?gid=0&single=true&output=csv';
     const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbw_yzLQVh1VKSQip9gL4dbTNxBksP_RREwhI9R5sJiXp50SonEG1PZRAqCrZnwvADTPoA/exec';
 
@@ -946,36 +979,13 @@
     }
 
     function loadState() {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        const savedSync = localStorage.getItem(SYNC_KEY);
-        if (savedSync) state.lastSyncedAt = savedSync;
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            state.items = parsed.map(i => i.category === 'Tech & Apple' ? { ...i, category: 'Tech' } : i);
-            if (!state.items.some(i => i.id === state.selectedAnalyticsId)) {
-              state.selectedAnalyticsId = state.items[0].id;
-            }
-            return;
-          }
-        }
-      } catch (e) {
-        // Fallback to initial items if localStorage is blocked
-      }
       state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
-      state.lastSyncedAt = 'Nov 26, 2026 · 7:41 PM';
+      state.lastSyncedAt = 'Syncing from Google Sheet...';
     }
 
     function saveState(updateSync = false) {
       if (updateSync) {
         state.lastSyncedAt = formatNowTimestamp();
-      }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items));
-        localStorage.setItem(SYNC_KEY, state.lastSyncedAt);
-      } catch (e) {
-        // Ignore storage errors in sandboxed environments
       }
     }
 
@@ -2421,10 +2431,7 @@
           };
         });
 
-        // Keep any manually added local-only items not in the sheet
-        const sheetNames = new Set(sheetItems.map(s => s.name.trim().toLowerCase()));
-        const localOnly = state.items.filter(i => !sheetNames.has(i.name.trim().toLowerCase()) && !String(i.id).startsWith('sheet-'));
-        state.items = [...merged, ...localOnly];
+        state.items = merged;
         if (!state.items.some(i => i.id === state.selectedAnalyticsId) && state.items.length > 0) {
           state.selectedAnalyticsId = state.items[0].id;
         }
@@ -2934,11 +2941,7 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       modal.classList.add('flex');
     });
     document.getElementById('btn-reset-data').addEventListener('click', () => {
-      state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
-      state.selectedAnalyticsId = state.items[0].id;
-      saveState(true);
-      renderAll();
-      showToast('Restored original Google Sheet items');
+      syncFromGoogleSheet(true);
     });
 
     document.getElementById('close-detail-modal').addEventListener('click', () => closeModal('detail-modal'));
