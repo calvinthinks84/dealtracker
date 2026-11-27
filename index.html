@@ -624,6 +624,49 @@
     </div>
   </div>
 
+  <!-- Report Price & Recalculate Modal -->
+  <div id="report-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div class="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div class="flex items-center gap-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+            <i data-lucide="flag" class="h-4 w-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Report Price &amp; Recalculate</h3>
+            <p id="report-item-name" class="text-[11px] text-slate-500 truncate max-w-[260px]"></p>
+          </div>
+        </div>
+        <button id="close-report-modal" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <form id="report-form" class="p-5 space-y-4">
+        <input type="hidden" id="report-item-id" />
+        <div id="report-current-summary" class="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"></div>
+        <div>
+          <label for="report-note" class="block text-xs font-semibold text-slate-700">What looks wrong? (optional)</label>
+          <textarea id="report-note" rows="2" placeholder="e.g. Price is now $169 at Amazon, Walmart out of stock, or wrong model..." class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"></textarea>
+        </div>
+        <div id="report-key-box" class="hidden rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2">
+          <label for="report-api-key" class="block text-[11px] font-semibold text-amber-900">Gemini API Key (saved once in browser for live search)</label>
+          <input id="report-api-key" type="password" placeholder="AIza..." class="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs focus:border-amber-500 focus:outline-none" />
+        </div>
+        <p id="report-status" class="hidden text-xs font-medium"></p>
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <button id="btn-report-manual" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit Manually</button>
+          <div class="flex items-center gap-2">
+            <button id="cancel-report-modal" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+            <button id="btn-run-recalc" type="submit" class="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700">
+              <i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i>
+              <span>Recalculate Search</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Send Deal Email Modal -->
   <div id="email-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
     <div class="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -1629,6 +1672,14 @@
                     </button>
                     <button
                       type="button"
+                      title="Report Price & Recalculate"
+                      data-report-id="${item.id}"
+                      class="report-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-600"
+                    >
+                      <i data-lucide="flag" class="h-4 w-4"></i>
+                    </button>
+                    <button
+                      type="button"
                       title="Email Deal"
                       data-email-id="${item.id}"
                       class="email-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
@@ -2205,6 +2256,9 @@
       });
       document.querySelectorAll('.detail-btn').forEach(btn => {
         btn.addEventListener('click', () => openDetailModal(btn.dataset.detailId));
+      });
+      document.querySelectorAll('.report-btn').forEach(btn => {
+        btn.addEventListener('click', () => openReportModal(btn.dataset.reportId));
       });
       document.querySelectorAll('.email-btn').forEach(btn => {
         btn.addEventListener('click', () => openEmailModal(btn.dataset.emailId));
@@ -3070,6 +3124,134 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
     });
     document.getElementById('btn-reset-data').addEventListener('click', () => {
       syncFromGoogleSheet(true);
+    });
+
+    function openReportModal(id) {
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+      const model = getItemModel(item);
+      document.getElementById('report-item-id').value = item.id;
+      document.getElementById('report-item-name').textContent = `${item.name}${model ? ' · ' + model : ''}`;
+      document.getElementById('report-current-summary').innerHTML = `Currently tracked at <strong class="text-slate-900">${fmtCurrency(item.bestPrice)}</strong> (MSRP ${fmtCurrency(item.msrp)}) at <strong class="text-slate-900">${escapeHtml(item.retailer || 'Retailer')}</strong>.`;
+      document.getElementById('report-note').value = '';
+      const st = document.getElementById('report-status');
+      st.classList.add('hidden');
+      st.textContent = '';
+      const keyBox = document.getElementById('report-key-box');
+      if (!getSavedGeminiKey()) keyBox.classList.remove('hidden');
+      else keyBox.classList.add('hidden');
+      const m = document.getElementById('report-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    document.getElementById('close-report-modal').addEventListener('click', () => closeModal('report-modal'));
+    document.getElementById('cancel-report-modal').addEventListener('click', () => closeModal('report-modal'));
+    document.getElementById('report-modal').addEventListener('click', e => {
+      if (e.target.id === 'report-modal') closeModal('report-modal');
+    });
+    document.getElementById('btn-report-manual').addEventListener('click', () => {
+      const id = document.getElementById('report-item-id').value;
+      closeModal('report-modal');
+      openFormModal(id);
+    });
+    document.getElementById('report-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const id = document.getElementById('report-item-id').value;
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+      const typedKey = document.getElementById('report-api-key').value.trim();
+      if (typedKey) setSavedGeminiKey(typedKey);
+      const apiKey = getSavedGeminiKey();
+      const st = document.getElementById('report-status');
+      const btn = document.getElementById('btn-run-recalc');
+
+      if (!apiKey) {
+        document.getElementById('report-key-box').classList.remove('hidden');
+        st.textContent = 'Paste your AIza... Gemini API key above to run a live price recalculation, or click Edit Manually.';
+        st.className = 'text-xs font-medium text-rose-600';
+        st.classList.remove('hidden');
+        return;
+      }
+
+      const note = document.getElementById('report-note').value.trim();
+      const model = getItemModel(item);
+      btn.disabled = true;
+      btn.classList.add('opacity-60');
+      st.textContent = 'Searching live 2026 retailer prices, promos & cashback...';
+      st.className = 'text-xs font-medium text-indigo-600';
+      st.classList.remove('hidden');
+
+      const prompt = `Re-verify and recalculate the LIVE current US retail deal price as of today for this exact product:
+Name: ${item.name}
+${model ? 'Model / Part #: ' + model : ''}
+Config: ${item.config || 'Standard'}
+Previous Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
+${note ? 'User discrepancy note: ' + note : 'User reported the price may be outdated or inaccurate.'}
+
+Apply Standard Deal Query Criteria:
+1. Validate exact MSRP and lowest current live deal price (never guess).
+2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
+3. Factor in active promo codes, coupons, Rakuten cash back, or Target RedCard 5%.
+4. Return ONLY valid JSON with these keys:
+{
+  "msrp": number,
+  "bestPrice": number,
+  "retailer": string,
+  "promoCode": string,
+  "couponDetails": string,
+  "cashbackPct": number,
+  "cashbackSource": string,
+  "otherPrices": "Retailer A $X | Retailer B $Y",
+  "url": "direct retailer product detail page URL",
+  "low6m": number,
+  "high6m": number,
+  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
+  "projection": string
+}`;
+
+      try {
+        const parsed = await callGeminiWithSearch(apiKey, prompt);
+        const msrp = Number(parsed.msrp) || Number(item.msrp) || 0;
+        const bestPrice = Number(parsed.bestPrice) || Number(item.bestPrice) || msrp;
+        const low6m = Number(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
+        const high6m = Number(parsed.high6m) || Math.max(msrp, item.high6m || msrp);
+        const updated = {
+          ...item,
+          msrp,
+          bestPrice,
+          retailer: parsed.retailer || item.retailer,
+          promoCode: parsed.promoCode !== undefined ? parsed.promoCode : item.promoCode,
+          couponDetails: parsed.couponDetails !== undefined ? parsed.couponDetails : item.couponDetails,
+          cashbackPct: parsed.cashbackPct !== undefined ? Number(parsed.cashbackPct) : item.cashbackPct,
+          cashbackSource: parsed.cashbackSource !== undefined ? parsed.cashbackSource : item.cashbackSource,
+          otherPrices: parsed.otherPrices || item.otherPrices,
+          url: (parsed.url && String(parsed.url).startsWith('http')) ? parsed.url : item.url,
+          low6m,
+          high6m,
+          history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-mo range)`,
+          priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
+          whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
+          projection: parsed.projection || item.projection,
+          status: item.status === 'Purchased' ? 'Purchased' : (bestPrice < msrp ? 'Deal Active' : 'Monitoring'),
+          lastChecked: formatDateISO(),
+          offers: []
+        };
+        state.items = state.items.map(i => i.id === id ? updated : i);
+        saveState(true);
+        renderAll();
+        pushItemToGoogleSheet(updated, 'update');
+        closeModal('report-modal');
+        showToast(`Recalculated ${updated.name}: ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`);
+      } catch (err) {
+        st.textContent = err.message || 'Live search failed. Check your API key or try Edit Manually.';
+        st.className = 'text-xs font-medium text-rose-600';
+        st.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-60');
+      }
     });
 
     function openEmailModal(id) {
