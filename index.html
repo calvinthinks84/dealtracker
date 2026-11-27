@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Deals Tracker</title>
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="apple-touch-icon.png" />
@@ -19,6 +19,13 @@
       color: #0f172a;
     }
     .tabular-nums { font-variant-numeric: tabular-nums; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    header { padding-top: env(safe-area-inset-top); }
+    body { padding-bottom: env(safe-area-inset-bottom); -webkit-tap-highlight-color: transparent; }
+    @media (max-width: 640px) {
+      input, select, textarea { font-size: 16px !important; }
+    }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
@@ -115,7 +122,7 @@
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
 
     <!-- KPI Strip -->
-    <section id="kpi-strip" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <section id="kpi-strip" class="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
       <!-- Rendered dynamically -->
     </section>
 
@@ -552,6 +559,41 @@
     </div>
   </div>
 
+  <!-- Mark as Purchased Modal -->
+  <div id="purchase-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div class="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div class="flex items-center gap-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <i data-lucide="shopping-bag" class="h-4 w-4"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Mark as Purchased</h2>
+            <p id="purchase-item-name" class="text-xs text-slate-500 line-clamp-1"></p>
+          </div>
+        </div>
+        <button id="close-purchase-modal" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <form id="purchase-form" class="p-5 space-y-4">
+        <input type="hidden" id="purchase-item-id" />
+        <div>
+          <label for="purchase-price" class="block text-xs font-semibold text-slate-700">Purchased Price ($) *</label>
+          <input id="purchase-price" type="number" step="0.01" min="0" required class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+        </div>
+        <div>
+          <label for="purchase-retailer" class="block text-xs font-semibold text-slate-700">Purchased From (Retailer) *</label>
+          <input id="purchase-retailer" type="text" required placeholder="e.g. Amazon, Best Buy, Costco" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <button id="cancel-purchase-modal" type="button" class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700">Confirm Purchase</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast" class="pointer-events-none fixed bottom-5 right-5 z-50 translate-y-4 opacity-0 transition-all duration-200">
     <div class="flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-medium text-white shadow-lg">
@@ -832,7 +874,7 @@
     let state = {
       items: [],
       search: '',
-      statusFilter: 'All',
+      statusFilter: 'Current',
       categoryFilter: 'All',
       sortBy: 'savingsPctDesc',
       viewMode: 'cards',
@@ -995,7 +1037,8 @@
     function getFilteredItems() {
       const q = state.search.trim().toLowerCase();
       let list = state.items.filter(item => {
-        if (state.statusFilter !== 'All' && item.status !== state.statusFilter) return false;
+        if (state.statusFilter === 'Current' && item.status === 'Purchased') return false;
+        else if (state.statusFilter !== 'All' && state.statusFilter !== 'Current' && item.status !== state.statusFilter) return false;
         if (state.categoryFilter !== 'All' && item.category !== state.categoryFilter) return false;
         if (q) {
           const hay = [item.name, item.config, item.retailer, item.promoCode, item.couponDetails, item.category, item.whenToBuy]
@@ -1062,12 +1105,14 @@
 
     function renderStatusPills() {
       const counts = {
-        All: state.items.length,
+        Current: state.items.filter(i => i.status !== 'Purchased').length,
         'Deal Active': state.items.filter(i => i.status === 'Deal Active').length,
         Monitoring: state.items.filter(i => i.status === 'Monitoring').length,
-        Purchased: state.items.filter(i => i.status === 'Purchased').length
+        Purchased: state.items.filter(i => i.status === 'Purchased').length,
+        All: state.items.length
       };
       const container = document.getElementById('status-pills');
+      container.className = 'flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 sm:pb-0 sm:flex-wrap';
       container.innerHTML = Object.entries(counts).map(([label, count]) => {
         const active = state.statusFilter === label;
         const cls = active
@@ -1077,7 +1122,7 @@
           <button
             type="button"
             data-status="${label}"
-            class="status-pill inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${cls}"
+            class="status-pill shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${cls}"
           >
             <span>${label}</span>
             <span class="rounded-full ${active ? 'bg-indigo-500 text-white' : 'bg-white text-slate-600'} px-1.5 py-0.2 text-[10px]">${count}</span>
@@ -1158,9 +1203,13 @@
                   <!-- Price Box -->
                   <div class="flex items-baseline justify-between rounded-xl bg-slate-50 px-3.5 py-2.5">
                     <div>
-                      <div class="text-[11px] font-medium text-slate-500">Best Price · ${escapeHtml(item.retailer)}</div>
+                      <div class="text-[11px] font-medium text-slate-500">
+                        ${item.status === 'Purchased'
+                          ? `Purchased · ${escapeHtml(item.purchasedFrom || item.retailer)}`
+                          : `Best Price · ${escapeHtml(item.retailer)}`}
+                      </div>
                       <div class="mt-0.5 flex items-baseline gap-2">
-                        <span class="text-2xl font-extrabold tabular-nums text-slate-900">${fmtCurrency(item.bestPrice)}</span>
+                        <span class="text-2xl font-extrabold tabular-nums text-slate-900">${fmtCurrency(item.status === 'Purchased' && item.purchasedPrice != null ? item.purchasedPrice : item.bestPrice)}</span>
                         ${dollar > 0 ? `<span class="text-xs tabular-nums text-slate-400 line-through">${fmtCurrency(item.msrp)}</span>` : ''}
                       </div>
                     </div>
@@ -1846,10 +1895,15 @@
         btn.addEventListener('click', () => {
           const item = state.items.find(i => i.id === btn.dataset.togglePurchased);
           if (!item) return;
-          item.status = item.status === 'Purchased' ? 'Deal Active' : 'Purchased';
-          saveState(true);
-          renderAll();
-          showToast(`Marked "${item.name}" as ${item.status}`);
+          if (item.status === 'Purchased') {
+            item.status = 'Deal Active';
+            saveState(true);
+            renderAll();
+            pushItemToGoogleSheet(item, 'update');
+            showToast(`Reactivated "${item.name}" & synced to Google Sheet`);
+          } else {
+            openPurchaseModal(item.id);
+          }
         });
       });
       document.querySelectorAll('.target-input').forEach(inp => {
@@ -2644,6 +2698,45 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       showToast(`Imported ${imported.length} item${imported.length === 1 ? '' : 's'}`);
     });
 
+    function openPurchaseModal(itemId) {
+      const item = state.items.find(i => i.id === itemId);
+      if (!item) return;
+      document.getElementById('purchase-item-id').value = item.id;
+      document.getElementById('purchase-item-name').textContent = item.name;
+      document.getElementById('purchase-price').value = item.purchasedPrice != null ? item.purchasedPrice : item.bestPrice;
+      document.getElementById('purchase-retailer').value = item.purchasedFrom || item.retailer || '';
+      const modal = document.getElementById('purchase-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    document.getElementById('close-purchase-modal').addEventListener('click', () => closeModal('purchase-modal'));
+    document.getElementById('cancel-purchase-modal').addEventListener('click', () => closeModal('purchase-modal'));
+    document.getElementById('purchase-modal').addEventListener('click', e => {
+      if (e.target.id === 'purchase-modal') closeModal('purchase-modal');
+    });
+
+    document.getElementById('purchase-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const id = document.getElementById('purchase-item-id').value;
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+      const paid = parseFloat(document.getElementById('purchase-price').value);
+      const from = document.getElementById('purchase-retailer').value.trim();
+      item.status = 'Purchased';
+      item.purchasedPrice = Number.isNaN(paid) ? item.bestPrice : paid;
+      item.purchasedFrom = from || item.retailer;
+      item.bestPrice = item.purchasedPrice;
+      item.retailer = item.purchasedFrom;
+      item.lastChecked = formatIsoDateTime();
+      saveState(true);
+      closeModal('purchase-modal');
+      renderAll();
+      pushItemToGoogleSheet(item, 'update');
+      showToast(`Marked "${item.name}" purchased (${fmtCurrency(item.purchasedPrice)} at ${item.purchasedFrom})`);
+    });
+
     document.getElementById('item-form').addEventListener('submit', e => {
       e.preventDefault();
       const existingId = document.getElementById('form-id').value;
@@ -2711,7 +2804,7 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       const THRESHOLD = 60;
 
       function isAnyModalOpen() {
-        return ['ai-modal', 'detail-modal', 'form-modal', 'import-modal'].some(id => {
+        return ['ai-modal', 'detail-modal', 'form-modal', 'import-modal', 'purchase-modal'].some(id => {
           const el = document.getElementById(id);
           return el && !el.classList.contains('hidden');
         });
