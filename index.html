@@ -837,10 +837,32 @@
       return `${datePart} · ${timePart}`;
     }
 
-    function formatIsoDateTime() {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    function formatIsoDateTime(dateInput) {
+      const d = dateInput ? new Date(dateInput) : new Date();
+      if (Number.isNaN(d.getTime())) return String(dateInput || '');
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZoneName: 'short'
+      }).formatToParts(d);
+      const get = t => (parts.find(p => p.type === t) || {}).value || '';
+      return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')} ${get('dayPeriod')} ${get('timeZoneName')}`.trim();
+    }
+
+    function formatSourceTimePST(val) {
+      const s = String(val || '').trim();
+      if (!s) return 'Not checked';
+      if (/\b(PST|PDT)\b/i.test(s)) return s;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s) ? s.replace(' ', 'T') : s;
+      const d = new Date(normalized);
+      if (!Number.isNaN(d.getTime())) return formatIsoDateTime(d);
+      return s;
     }
 
     function buildDefaultHistory6m(msrp, bestPrice, low6m, high6m) {
@@ -1399,9 +1421,13 @@
                           ? `Purchased · ${escapeHtml(item.purchasedFrom || item.retailer)}`
                           : `Best Price · ${escapeHtml(item.retailer)}`}
                       </div>
-                      <div class="mt-0.5 flex items-baseline gap-2">
+                      <div class="mt-0.5 flex flex-wrap items-baseline gap-2">
                         <span class="text-2xl font-extrabold tabular-nums text-slate-900">${fmtCurrency(item.status === 'Purchased' && item.purchasedPrice != null ? item.purchasedPrice : item.bestPrice)}</span>
                         ${dollar > 0 ? `<span class="text-xs tabular-nums text-slate-400 line-through">${fmtCurrency(item.msrp)}</span>` : ''}
+                        <span title="Last time price was updated from live source" class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                          <i data-lucide="clock" class="h-2.5 w-2.5 text-slate-400"></i>
+                          <span>${escapeHtml('Source: ' + formatSourceTimePST(item.lastChecked))}</span>
+                        </span>
                       </div>
                       ${(() => {
                         const cb = getCashbackInfo(item);
@@ -1586,7 +1612,7 @@
                         <div class="mt-0.5 truncate text-[11px] text-slate-500">${escapeHtml(item.config || '')}</div>
                       </td>
                       <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-500">${fmtCurrency(item.msrp)}</td>
-                      <td class="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-slate-900">${fmtCurrency(item.bestPrice)}</td>
+                      <td class="whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums text-slate-900"><div>${fmtCurrency(item.bestPrice)}</div><div class="text-[10px] font-normal text-slate-400">${escapeHtml("Source: " + formatSourceTimePST(item.lastChecked))}</div></td>
                       <td class="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                         ${dollar > 0 ? `<span class="font-semibold text-emerald-700">${fmtCurrency(dollar)} (${pct.toFixed(1)}%)</span>` : `<span class="text-slate-400">—</span>`}
                       </td>
@@ -2341,7 +2367,7 @@
           history6m,
           projection,
           status,
-          lastChecked: cChecked !== -1 && r[cChecked] ? r[cChecked].trim() : formatIsoDateTime(),
+          lastChecked: cChecked !== -1 && r[cChecked] ? r[cChecked].trim() : '',
           url: validUrl,
           targetPrice: cTarget !== -1 && r[cTarget] ? cleanNum(r[cTarget]) : null,
           imageUrl: cImg !== -1 && r[cImg] && r[cImg].startsWith('http') ? r[cImg].trim() : '',
@@ -3102,7 +3128,7 @@ Apply Standard Deal Query Criteria:
             whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
             projection: parsed.projection || item.projection,
             status: bestPrice < msrp ? 'Deal Active' : 'Monitoring',
-            lastChecked: formatDateISO(),
+            lastChecked: formatIsoDateTime(),
             offers: []
           };
           state.items = state.items.map(i => i.id === item.id ? updated : i);
@@ -3363,7 +3389,7 @@ Instructions:
           projection: parsed.projection || item.projection,
           comments: parsed.comments !== undefined ? String(parsed.comments) : item.comments,
           status: item.status === 'Purchased' ? 'Purchased' : (bestPrice < msrp ? 'Deal Active' : 'Monitoring'),
-          lastChecked: formatDateISO(),
+          lastChecked: formatIsoDateTime(),
           offers: []
         };
         state.items = state.items.map(i => i.id === id ? updated : i);
