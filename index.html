@@ -2498,7 +2498,7 @@ Return ONLY valid JSON with these keys:
       const prompt = `The user wants to add a product to their Wishlist Deals Tracker: "${raw}".
 Follow this strict multi-retailer deal-hunting standard:
 1. Search across ALL major US retailers (Amazon, Costco, Target, Walmart, Best Buy, B&H Photo, Apple Store, and the official brand site), Slickdeals.net, and active coupon/promo code sources.
-2. Compare prices across retailers and apply any active promo codes, in-cart coupons, or instant holiday discounts to find the TRUE LOWEST current net price (not just MSRP).
+2. ALWAYS validate MSRP and Best Current Price against live current web search deal prices (never use outdated 2024/2025 training-data estimates), and apply active promo codes, in-cart coupons, or instant discounts to find the TRUE LOWEST current net price.
 3. List at least 2-3 competing retailer prices in "otherPrices" (e.g. "Amazon $X | Best Buy $Y | Target $Z").
 4. Include any active promo code, coupon, or card/cashback perk in "promoCode" and "couponDetails".
 5. Provide the 6-month price range ("low6m", "high6m") and a concrete "whenToBuy" verdict + 3-6 month "projection".
