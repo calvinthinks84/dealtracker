@@ -2756,7 +2756,9 @@ Return ONLY valid JSON with these keys:
       return JSON.parse(match[0]);
     }
 
+    const _geminiModelCache = new Map();
     async function discoverActiveGeminiModels(apiKey) {
+      if (_geminiModelCache.has(apiKey)) return _geminiModelCache.get(apiKey);
       try {
         const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
         if (!resp.ok) return [];
@@ -2765,7 +2767,9 @@ Return ONLY valid JSON with these keys:
           .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
           .map(m => String(m.name || '').replace(/^models\//, ''))
           .filter(name => name.includes('gemini') && name.includes('flash') && !name.includes('tts') && !name.includes('image') && !name.includes('audio'));
-        return models.reverse();
+        const res = models.reverse();
+        _geminiModelCache.set(apiKey, res);
+        return res;
       } catch (e) {
         return [];
       }
@@ -2793,11 +2797,19 @@ Return ONLY valid JSON with these keys:
           : { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } };
 
         try {
-          const resp = await fetch(endpoint, {
+          let resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+          if (resp.status === 429) {
+            await new Promise(r => setTimeout(r, 2500));
+            resp = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          }
           if (resp.ok) {
             const data = await resp.json();
             const cand = data?.candidates?.[0];
@@ -3042,12 +3054,18 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       }
       keyBox.classList.add('hidden');
 
+      if (state.items.length === 0) {
+        countEl.textContent = 'Loading...';
+        titleEl.textContent = 'Loading items from Google Sheet...';
+        await syncFromGoogleSheet(false);
+      }
+
       const targets = state.items.filter(i => i.status !== 'Purchased');
       const skippedCount = state.items.length - targets.length;
       if (targets.length === 0) {
         countEl.textContent = '0 Active';
         titleEl.textContent = 'No Active Items to Update';
-        subEl.textContent = 'All tracked items are marked Purchased or the list is still loading.';
+        subEl.textContent = 'All tracked items are marked Purchased or no items were found.';
         barEl.style.width = '100%';
         return;
       }
@@ -3058,10 +3076,11 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       closeBtn.classList.add('hidden');
       headerBtn.disabled = true;
       headerBtn.classList.add('opacity-70');
-      iconEl.classList.add('animate-spin');
+      if (iconEl) iconEl.classList.add('animate-spin');
 
       let updatedCount = 0;
       let failedCount = 0;
+      let lastErrorMsg = '';
 
       for (let idx = 0; idx < targets.length; idx++) {
         if (batchCancelRequested) break;
@@ -3139,13 +3158,17 @@ Apply Standard Deal Query Criteria:
           lastEl.classList.remove('hidden');
         } catch (err) {
           failedCount++;
-          lastEl.textContent = `Skipped ${idx + 1}/${targets.length}: ${item.name} (${err.message || 'Lookup failed'})`;
+          lastErrorMsg = err.message || 'Lookup failed';
+          lastEl.textContent = `Skipped ${idx + 1}/${targets.length}: ${item.name} (${lastErrorMsg})`;
           lastEl.classList.remove('hidden');
         }
 
         const donePct = Math.round(((idx + 1) / targets.length) * 100);
         barEl.style.width = `${donePct}%`;
         countEl.textContent = `Item ${idx + 1} of ${targets.length} (${donePct}%)`;
+        if (idx < targets.length - 1 && !batchCancelRequested) {
+          await new Promise(r => setTimeout(r, 350));
+        }
       }
 
       state.recalculatingId = null;
@@ -3154,13 +3177,19 @@ Apply Standard Deal Query Criteria:
       closeBtn.classList.remove('hidden');
       headerBtn.disabled = false;
       headerBtn.classList.remove('opacity-70');
-      iconEl.classList.remove('animate-spin');
+      if (iconEl) iconEl.classList.remove('animate-spin');
       renderAll();
 
       const skippedMsg = skippedCount > 0 ? ` (${skippedCount} purchased skipped)` : '';
       const failedMsg = failedCount > 0 ? `, ${failedCount} failed` : '';
-      titleEl.textContent = batchCancelRequested ? 'Batch Price Update Stopped' : 'All Active Prices & Predictions Updated';
-      subEl.textContent = `Updated ${updatedCount} of ${targets.length} active items${failedMsg}${skippedMsg} and synced to Google Sheet.`;
+      if (updatedCount === 0 && failedCount > 0) {
+        titleEl.textContent = 'Batch Price Update Failed';
+        subEl.textContent = `0 of ${targets.length} updated — ${lastErrorMsg}. Check your Gemini API key below.`;
+        keyBox.classList.remove('hidden');
+      } else {
+        titleEl.textContent = batchCancelRequested ? 'Batch Price Update Stopped' : 'All Active Prices & Predictions Updated';
+        subEl.textContent = `Updated ${updatedCount} of ${targets.length} active items${failedMsg}${skippedMsg} and synced to Google Sheet.`;
+      }
       showToast(`Updated ${updatedCount} active items & synced to Google Sheet`);
     }
 
