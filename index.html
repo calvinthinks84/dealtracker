@@ -2683,10 +2683,16 @@
         return;
       }
 
-      setAiStatus('Asking Gemini AI to analyze product, pricing & buy timing...');
+      setAiStatus('Searching live US retailers & asking Gemini AI to populate fields...');
       try {
-        const prompt = `Extract or estimate structured wishlist deal tracker fields from this user input: "${raw}".
-Return ONLY valid JSON with these keys:
+        const existingName = document.getElementById('form-name').value.trim();
+        const existingModel = document.getElementById('form-model').value.trim();
+        const existingConfig = document.getElementById('form-config').value.trim();
+        const prompt = `Extract or update structured wishlist deal tracker fields from this user instruction/input: "${raw}".
+${existingName ? `Current Form Context — Name: "${existingName}", Model: "${existingModel}", Config: "${existingConfig}".` : ''}
+Apply Standard Deal Query Criteria:
+1. Search live US retail pricing, exact manufacturer model/part number, and direct retailer product detail URL (never a search page or blog).
+2. Return ONLY valid JSON with these keys:
 {
   "name": string,
   "modelNumber": "exact manufacturer model or part number if known, else empty string",
@@ -2706,24 +2712,16 @@ Return ONLY valid JSON with these keys:
   "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
   "projection": string
 }`;
-        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
-          })
-        });
-        if (!resp.ok) throw new Error('Gemini API error ' + resp.status);
-        const data = await resp.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const parsed = JSON.parse(text);
+        const parsed = await callGeminiWithSearch(apiKey, prompt);
         applyParsedFields(parsed);
-        setAiStatus('Gemini AI auto-filled the form! Review the fields and click Save Item.');
+        setAiStatus('Gemini AI auto-filled the form with live data! Review the fields and click Save Item.');
       } catch (err) {
-        const fallback = localSmartParse(raw);
-        applyParsedFields(fallback);
-        setAiStatus('Gemini API unavailable—used smart parser fallback. Check your API key or edit fields below.', true);
+        const existingName = document.getElementById('form-name').value.trim();
+        if (!existingName) {
+          const fallback = localSmartParse(raw);
+          applyParsedFields(fallback);
+        }
+        setAiStatus(`Gemini AI error: ${err.message || 'Check your API key or network.'}`, true);
       } finally {
         btn.disabled = false;
         btn.classList.remove('opacity-60');
