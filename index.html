@@ -114,12 +114,47 @@
             <i data-lucide="plus" class="h-3.5 w-3.5"></i>
             <span>Add Item</span>
           </button>
+          <button
+            id="btn-update-all-prices"
+            type="button"
+            title="Out-of-band live price &amp; prediction update for all active items"
+            class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+          >
+            <i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i>
+            <span>Update All Prices</span>
+          </button>
         </div>
       </div>
     </div>
   </header>
 
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+
+    <!-- Out-of-Band Batch Price Update Banner -->
+    <section id="batch-update-banner" class="hidden rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+            <i id="batch-update-icon" data-lucide="refresh-cw" class="h-4 w-4"></i>
+          </div>
+          <div>
+            <p id="batch-update-title" class="text-xs font-bold text-emerald-950">Out-of-Band Live Price &amp; Prediction Update</p>
+            <p id="batch-update-subtitle" class="text-[11px] text-emerald-800">Preparing live retail checks...</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-batch-stop" type="button" class="hidden rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50">Stop</button>
+          <button id="btn-batch-close" type="button" class="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">Dismiss</button>
+        </div>
+      </div>
+      <div id="batch-key-box" class="hidden flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <input id="batch-api-key" type="password" placeholder="Paste Gemini API Key (AIza...) for live web price checks" class="flex-1 min-w-[220px] rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none" />
+        <button id="btn-batch-start-with-key" type="button" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Save &amp; Start Update</button>
+      </div>
+      <div class="h-2 w-full overflow-hidden rounded-full bg-emerald-100">
+        <div id="batch-progress-bar" class="h-full w-0 rounded-full bg-emerald-600 transition-all duration-300"></div>
+      </div>
+    </section>
 
     <!-- KPI Strip -->
     <section id="kpi-strip" class="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -2937,6 +2972,159 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
     })();
 
     document.getElementById('btn-ai-smart-add').addEventListener('click', openAiModal);
+
+    let batchUpdating = false;
+    let batchCancelRequested = false;
+
+    async function runBatchPriceUpdate() {
+      if (batchUpdating) return;
+      const banner = document.getElementById('batch-update-banner');
+      const titleEl = document.getElementById('batch-update-title');
+      const subEl = document.getElementById('batch-update-subtitle');
+      const barEl = document.getElementById('batch-progress-bar');
+      const iconEl = document.getElementById('batch-update-icon');
+      const keyBox = document.getElementById('batch-key-box');
+      const stopBtn = document.getElementById('btn-batch-stop');
+      const closeBtn = document.getElementById('btn-batch-close');
+      const headerBtn = document.getElementById('btn-update-all-prices');
+
+      banner.classList.remove('hidden');
+      const apiKey = getSavedGeminiKey();
+      if (!apiKey) {
+        keyBox.classList.remove('hidden');
+        titleEl.textContent = 'Gemini API Key Required for Live Updates';
+        subEl.textContent = 'Paste your AIza... key below to check live US retail prices and predictions for all items.';
+        barEl.style.width = '0%';
+        return;
+      }
+      keyBox.classList.add('hidden');
+
+      const targets = state.items.filter(i => i.status !== 'Purchased');
+      const skippedCount = state.items.length - targets.length;
+      if (targets.length === 0) {
+        titleEl.textContent = 'No Active Items to Update';
+        subEl.textContent = 'All tracked items are marked Purchased or the list is still loading.';
+        barEl.style.width = '100%';
+        return;
+      }
+
+      batchUpdating = true;
+      batchCancelRequested = false;
+      stopBtn.classList.remove('hidden');
+      closeBtn.classList.add('hidden');
+      headerBtn.disabled = true;
+      headerBtn.classList.add('opacity-70');
+      iconEl.classList.add('animate-spin');
+
+      let updatedCount = 0;
+      let failedCount = 0;
+
+      for (let idx = 0; idx < targets.length; idx++) {
+        if (batchCancelRequested) break;
+        const item = targets[idx];
+        const model = getItemModel(item);
+        state.recalculatingId = item.id;
+        renderAll();
+
+        titleEl.textContent = `Updating ${idx + 1} of ${targets.length}: ${item.name}`;
+        subEl.textContent = `Checking live 2026 retail prices, promos, cashback & price predictions...`;
+        barEl.style.width = `${Math.round((idx / targets.length) * 100)}%`;
+
+        const prompt = `Re-verify and update the LIVE current US retail deal price and price prediction as of today for this exact product:
+Name: ${item.name}
+${model ? 'Model / Part #: ' + model : ''}
+Config: ${item.config || 'Standard'}
+Previous Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
+
+Apply Standard Deal Query Criteria:
+1. Validate exact MSRP and lowest current live US retail deal price (never guess).
+2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
+3. Factor in active promo codes, coupons, Rakuten cash back, or Target RedCard 5%.
+4. Provide an updated buy-timing prediction (whenToBuy) and concise projection note.
+5. Return ONLY valid JSON with these keys:
+{
+  "msrp": number,
+  "bestPrice": number,
+  "retailer": string,
+  "promoCode": string,
+  "couponDetails": string,
+  "cashbackPct": number,
+  "cashbackSource": string,
+  "otherPrices": "Retailer A $X | Retailer B $Y",
+  "url": "direct retailer product detail page URL",
+  "low6m": number,
+  "high6m": number,
+  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
+  "projection": string
+}`;
+
+        try {
+          const parsed = await callGeminiWithSearch(apiKey, prompt);
+          const msrp = Number(parsed.msrp) || Number(item.msrp) || 0;
+          const bestPrice = Number(parsed.bestPrice) || Number(item.bestPrice) || msrp;
+          const low6m = Number(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
+          const high6m = Number(parsed.high6m) || Math.max(msrp, item.high6m || msrp);
+          const updated = {
+            ...item,
+            msrp,
+            bestPrice,
+            retailer: parsed.retailer || item.retailer,
+            promoCode: parsed.promoCode !== undefined ? parsed.promoCode : item.promoCode,
+            couponDetails: parsed.couponDetails !== undefined ? parsed.couponDetails : item.couponDetails,
+            cashbackPct: parsed.cashbackPct !== undefined ? Number(parsed.cashbackPct) : item.cashbackPct,
+            cashbackSource: parsed.cashbackSource !== undefined ? parsed.cashbackSource : item.cashbackSource,
+            otherPrices: parsed.otherPrices || item.otherPrices,
+            url: (parsed.url && String(parsed.url).startsWith('http')) ? parsed.url : item.url,
+            low6m,
+            high6m,
+            history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-mo range)`,
+            priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
+            whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
+            projection: parsed.projection || item.projection,
+            status: bestPrice < msrp ? 'Deal Active' : 'Monitoring',
+            lastChecked: formatDateISO(),
+            offers: []
+          };
+          state.items = state.items.map(i => i.id === item.id ? updated : i);
+          saveState(true);
+          pushItemToGoogleSheet(updated, 'update');
+          updatedCount++;
+        } catch (err) {
+          failedCount++;
+        }
+
+        barEl.style.width = `${Math.round(((idx + 1) / targets.length) * 100)}%`;
+      }
+
+      state.recalculatingId = null;
+      batchUpdating = false;
+      stopBtn.classList.add('hidden');
+      closeBtn.classList.remove('hidden');
+      headerBtn.disabled = false;
+      headerBtn.classList.remove('opacity-70');
+      iconEl.classList.remove('animate-spin');
+      renderAll();
+
+      const skippedMsg = skippedCount > 0 ? ` (${skippedCount} purchased skipped)` : '';
+      const failedMsg = failedCount > 0 ? `, ${failedCount} failed` : '';
+      titleEl.textContent = batchCancelRequested ? 'Batch Price Update Stopped' : 'All Active Prices & Predictions Updated';
+      subEl.textContent = `Updated ${updatedCount} of ${targets.length} active items${failedMsg}${skippedMsg} and synced to Google Sheet.`;
+      showToast(`Updated ${updatedCount} active items & synced to Google Sheet`);
+    }
+
+    document.getElementById('btn-update-all-prices').addEventListener('click', runBatchPriceUpdate);
+    document.getElementById('btn-batch-stop').addEventListener('click', () => {
+      batchCancelRequested = true;
+    });
+    document.getElementById('btn-batch-close').addEventListener('click', () => {
+      document.getElementById('batch-update-banner').classList.add('hidden');
+    });
+    document.getElementById('btn-batch-start-with-key').addEventListener('click', () => {
+      const k = document.getElementById('batch-api-key').value.trim();
+      if (!k) return;
+      setSavedGeminiKey(k);
+      runBatchPriceUpdate();
+    });
     document.getElementById('close-ai-modal').addEventListener('click', () => closeModal('ai-modal'));
     document.getElementById('ai-modal').addEventListener('click', e => {
       if (e.target.id === 'ai-modal') closeModal('ai-modal');
