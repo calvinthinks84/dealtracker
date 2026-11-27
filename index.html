@@ -126,24 +126,28 @@
       <!-- Rendered dynamically -->
     </section>
 
-    <!-- Toolbar: Search, Filters, Sort, View Toggle -->
-    <section class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <!-- Search & Status Pills -->
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center flex-1">
-          <div class="relative flex-1 max-w-md">
-            <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
-            <input
-              id="search-input"
-              type="text"
-              placeholder="Search items, retailers, promo codes..."
-              class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            />
-          </div>
+    <!-- Toolbar: Smart Search above Filter Selections -->
+    <section class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm space-y-3">
+      <!-- Top Row: Full-Width Smart Search -->
+      <div class="relative w-full">
+        <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Smart search: filter tracked items or type any new product to check & add..."
+          class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2.5 pl-10 pr-24 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+        />
+        <button
+          id="btn-clear-search"
+          type="button"
+          class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg bg-slate-200/70 px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-300/70"
+        >Clear</button>
+      </div>
 
-          <div id="status-pills" class="flex flex-wrap items-center gap-1.5">
-            <!-- Rendered dynamically -->
-          </div>
+      <!-- Bottom Row: Status Pills, Category, Sort & View Toggle -->
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div id="status-pills" class="flex flex-wrap items-center gap-1.5">
+          <!-- Rendered dynamically -->
         </div>
 
         <!-- Category, Sort & View Mode -->
@@ -427,7 +431,9 @@
                 <option value="Apparel">Apparel</option>
                 <option value="Kids & Toys">Kids &amp; Toys</option>
                 <option value="Other">Other</option>
+                <option value="__new__">+ Add New Category...</option>
               </select>
+              <input id="form-new-category" type="text" placeholder="Enter new category name" class="mt-1.5 hidden w-full rounded-xl border border-indigo-300 bg-indigo-50/40 px-3 py-2 text-sm focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
             </div>
             <div>
               <label for="form-status" class="block text-xs font-semibold text-slate-700">Status</label>
@@ -527,6 +533,10 @@
             <div class="sm:col-span-3">
               <label for="form-projection" class="block text-xs font-semibold text-slate-700">Price Prediction (Next 3–6 Mos) &amp; Timing Rationale</label>
               <input id="form-projection" type="text" placeholder="e.g. Expected $299 in Spring 2027; buy now if needed before holidays" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div class="sm:col-span-3">
+              <label for="form-comments" class="block text-xs font-semibold text-slate-700">Comments / Notes</label>
+              <textarea id="form-comments" rows="2" placeholder="Personal notes, gift ideas, sizing, or reminders..." class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
             </div>
           </div>
         </div>
@@ -1212,6 +1222,58 @@
       return `<span class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-inset ring-sky-600/20"><i data-lucide="eye" class="h-3 w-3"></i> Monitoring</span>`;
     }
 
+    function renderSmartSearchBanner() {
+      const q = state.search.trim();
+      if (q.length < 2) return '';
+      const exactMatch = state.items.some(i => i.name.toLowerCase() === q.toLowerCase());
+      if (exactMatch) return '';
+      const quickSites = SEARCH_SITES.slice(0, 6).map(s => `
+        <a href="${s.url(q)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-50">
+          <span>${escapeHtml(s.name)}</span>
+          <i data-lucide="external-link" class="h-2.5 w-2.5"></i>
+        </a>
+      `).join('');
+
+      return `
+        <div class="rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50/90 via-indigo-50/70 to-white p-4 shadow-sm">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+                <i data-lucide="sparkles" class="h-5 w-5"></i>
+              </div>
+              <div>
+                <div class="text-xs font-bold uppercase tracking-wider text-violet-700">Smart Search · New Item</div>
+                <h3 class="text-sm font-bold text-slate-900">Want to track &ldquo;${escapeHtml(q)}&rdquo;?</h3>
+                <p class="text-xs text-slate-600">Run a live price check with AI Smart Add or add it manually to your Deals Tracker &amp; Google Sheet.</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                data-smart-add-query="${escapeHtml(q)}"
+                class="smart-search-ai-btn inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-700"
+              >
+                <i data-lucide="wand-2" class="h-3.5 w-3.5"></i>
+                <span>AI Check &amp; Add</span>
+              </button>
+              <button
+                type="button"
+                data-manual-add-query="${escapeHtml(q)}"
+                class="smart-search-manual-btn inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                <span>Add Manually</span>
+              </button>
+            </div>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-1.5 border-t border-violet-100 pt-2.5">
+            <span class="text-[11px] font-semibold text-slate-500 mr-1">Quick Check:</span>
+            ${quickSites}
+          </div>
+        </div>
+      `;
+    }
+
     function renderCardsView(items) {
       if (items.length === 0) {
         return `
@@ -1283,6 +1345,12 @@
                     </div>
                     ${item.projection ? `<p class="text-[11px] text-slate-500 line-clamp-2"><span class="font-medium text-slate-700">Forecast:</span> ${escapeHtml(item.projection)}</p>` : ''}
                   </div>
+
+                  ${item.comments ? `
+                  <div class="rounded-xl bg-amber-50/60 border border-amber-200/60 px-3 py-2 text-xs text-amber-950">
+                    <span class="font-semibold">Note: </span><span>${escapeHtml(item.comments)}</span>
+                  </div>
+                  ` : ''}
 
                   <!-- Promo / Coupon -->
                   <div class="flex items-center justify-between gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-xs">
@@ -1776,6 +1844,9 @@
       const form = document.getElementById('item-form');
       form.reset();
       document.getElementById('form-id').value = '';
+      document.getElementById('form-new-category').classList.add('hidden');
+      document.getElementById('form-new-category').value = '';
+      syncCategoryDropdowns();
       if (editId) {
         const item = state.items.find(i => i.id === editId);
         if (item) {
@@ -1796,6 +1867,7 @@
           document.getElementById('form-image-url').value = item.imageUrl || '';
           document.getElementById('form-when-to-buy').value = item.whenToBuy || 'Buy Now — Promo Code Active';
           document.getElementById('form-projection').value = item.projection || '';
+          document.getElementById('form-comments').value = item.comments || '';
           const hist = getItemHistory6m(item);
           const prices = hist.map(p => Number(p.price) || 0);
           document.getElementById('form-low6m').value = prices.length ? Math.min(...prices) : '';
@@ -1973,10 +2045,52 @@
           commitTarget(true);
         });
       });
+      document.querySelectorAll('.smart-search-ai-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const q = btn.dataset.smartAddQuery;
+          openAiModal();
+          document.getElementById('ai-chat-input').value = q;
+          submitConversationalAiAdd();
+        });
+      });
+      document.querySelectorAll('.smart-search-manual-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const q = btn.dataset.manualAddQuery;
+          openFormModal(null);
+          document.getElementById('form-name').value = q;
+          renderOnboardingSiteLinks();
+        });
+      });
+    }
+
+    const DEFAULT_CATEGORIES = ['Tech', 'Home & Office', 'Apparel', 'Kids & Toys', 'Other'];
+
+    function getAllCategories() {
+      const set = new Set(DEFAULT_CATEGORIES);
+      state.items.forEach(i => { if (i.category && i.category.trim()) set.add(i.category.trim()); });
+      return Array.from(set);
+    }
+
+    function syncCategoryDropdowns() {
+      const cats = getAllCategories();
+      const filterSel = document.getElementById('category-select');
+      const prevFilter = state.categoryFilter;
+      filterSel.innerHTML = `<option value="All">All Categories</option>` +
+        cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      filterSel.value = cats.includes(prevFilter) || prevFilter === 'All' ? prevFilter : 'All';
+
+      const formSel = document.getElementById('form-category');
+      const prevForm = formSel.value;
+      formSel.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('') +
+        `<option value="__new__">+ Add New Category...</option>`;
+      if (prevForm && (cats.includes(prevForm) || prevForm === '__new__')) {
+        formSel.value = prevForm;
+      }
     }
 
     function renderAll() {
       document.getElementById('sync-timestamp').textContent = `Synced ${state.lastSyncedAt}`;
+      syncCategoryDropdowns();
       renderKPIs();
       renderStatusPills();
       updateViewTabs();
@@ -1984,12 +2098,13 @@
       const filtered = getFilteredItems();
       const main = document.getElementById('main-content');
 
+      const smartBanner = renderSmartSearchBanner();
       if (state.viewMode === 'cards') {
-        main.innerHTML = renderCardsView(filtered) + renderAnalyticsSection();
+        main.innerHTML = smartBanner + renderCardsView(filtered) + renderAnalyticsSection();
       } else if (state.viewMode === 'table') {
-        main.innerHTML = renderTableView(filtered) + renderAnalyticsSection();
+        main.innerHTML = smartBanner + renderTableView(filtered) + renderAnalyticsSection();
       } else {
-        main.innerHTML = renderAnalyticsSection();
+        main.innerHTML = smartBanner + renderAnalyticsSection();
       }
 
       bindDynamicListeners();
@@ -2000,7 +2115,23 @@
     // Static listeners
     document.getElementById('search-input').addEventListener('input', e => {
       state.search = e.target.value;
+      document.getElementById('btn-clear-search').classList.toggle('hidden', !state.search.trim());
       renderAll();
+    });
+    document.getElementById('btn-clear-search').addEventListener('click', () => {
+      state.search = '';
+      document.getElementById('search-input').value = '';
+      document.getElementById('btn-clear-search').classList.add('hidden');
+      renderAll();
+    });
+    document.getElementById('form-category').addEventListener('change', e => {
+      const inp = document.getElementById('form-new-category');
+      if (e.target.value === '__new__') {
+        inp.classList.remove('hidden');
+        inp.focus();
+      } else {
+        inp.classList.add('hidden');
+      }
     });
     document.getElementById('category-select').addEventListener('change', e => {
       state.categoryFilter = e.target.value;
@@ -2815,7 +2946,9 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
         id: existingId || 'item-' + Date.now(),
         name: document.getElementById('form-name').value.trim(),
         config: document.getElementById('form-config').value.trim(),
-        category: document.getElementById('form-category').value,
+        category: (document.getElementById('form-category').value === '__new__'
+          ? (document.getElementById('form-new-category').value.trim() || 'Other')
+          : document.getElementById('form-category').value),
         status: document.getElementById('form-status').value,
         msrp,
         bestPrice,
@@ -2828,6 +2961,7 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
         imageUrl: document.getElementById('form-image-url').value.trim(),
         whenToBuy: document.getElementById('form-when-to-buy').value,
         projection: document.getElementById('form-projection').value.trim(),
+        comments: document.getElementById('form-comments').value.trim(),
         low6m: Number.isNaN(low6m) ? null : low6m,
         high6m: Number.isNaN(high6m) ? null : high6m,
         lastChecked: formatIsoDateTime()
