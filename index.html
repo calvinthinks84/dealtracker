@@ -2585,42 +2585,87 @@
         }
         if (sheetItems.length === 0) throw new Error('No items parsed');
 
+        const resolveLowestOnSync = (si, prev) => {
+          const prevOffers = (prev && Array.isArray(prev.offers)) ? prev.offers : [];
+          const findOfferUrl = retName => {
+            const rn = String(retName || '').toLowerCase();
+            if (!rn) return '';
+            const hit = prevOffers.find(o => {
+              const or = String(o.retailer || '').toLowerCase();
+              return or && (or.includes(rn) || rn.includes(or.split('(')[0].trim()));
+            });
+            return (hit && hit.url && String(hit.url).startsWith('http')) ? hit.url : '';
+          };
+
+          let lowestPrice = Number(si.bestPrice) || 0;
+          let lowestRetailer = si.retailer || (prev ? prev.retailer : '') || '';
+          const sameRetailer = prev && prev.retailer && lowestRetailer.toLowerCase() === String(prev.retailer).toLowerCase();
+          let lowestUrl = (si.url && String(si.url).startsWith('http'))
+            ? si.url
+            : (findOfferUrl(lowestRetailer) || (sameRetailer && prev.url ? prev.url : ''));
+
+          if (si.otherPrices) {
+            String(si.otherPrices).split('|').forEach(part => {
+              const m = part.trim().match(/^(.+?)\s+\$([\d,]+(?:\.\d{1,2})?)/);
+              if (!m) return;
+              const ret = m[1].trim();
+              const price = parseFloat(m[2].replace(/,/g, ''));
+              if (ret && !isNaN(price) && price > 0 && (lowestPrice <= 0 || price < lowestPrice)) {
+                lowestPrice = price;
+                lowestRetailer = ret;
+                lowestUrl = findOfferUrl(ret) || getRetailerStoreUrl(ret, si.name);
+              }
+            });
+          }
+
+          if (!lowestUrl) {
+            lowestUrl = getDealUrl({ ...si, retailer: lowestRetailer, url: '' });
+          }
+          return { bestPrice: lowestPrice, retailer: lowestRetailer, url: lowestUrl };
+        };
+
         const existingMap = new Map(state.items.map(i => [i.name.trim().toLowerCase(), i]));
         const merged = sheetItems.map((si, idx) => {
           const prev = existingMap.get(si.name.trim().toLowerCase());
+          const best = resolveLowestOnSync(si, prev);
           if (prev) {
             const updatedHist = Array.isArray(prev.priceHistory6m) && prev.priceHistory6m.length > 0
-              ? prev.priceHistory6m.map((pt, pIdx, arr) => pIdx === arr.length - 1 ? { ...pt, price: si.bestPrice } : pt)
-              : buildDefaultHistory6m(si.msrp, si.bestPrice, si.bestPrice, si.msrp);
+              ? prev.priceHistory6m.map((pt, pIdx, arr) => pIdx === arr.length - 1 ? { ...pt, price: best.bestPrice } : pt)
+              : buildDefaultHistory6m(si.msrp, best.bestPrice, best.bestPrice, si.msrp);
+            const offersChanged = best.bestPrice !== prev.bestPrice || best.retailer !== prev.retailer || (si.otherPrices && si.otherPrices !== prev.otherPrices);
             return {
               ...prev,
               config: si.config || prev.config,
               msrp: si.msrp || prev.msrp,
-              bestPrice: si.bestPrice,
-              retailer: si.retailer || prev.retailer,
+              bestPrice: best.bestPrice,
+              retailer: best.retailer,
               couponDetails: si.couponDetails || prev.couponDetails,
               otherPrices: si.otherPrices || prev.otherPrices,
               history6m: si.history6m || prev.history6m,
               projection: si.projection || prev.projection,
               status: si.status || prev.status,
               lastChecked: si.lastChecked || prev.lastChecked,
-              url: si.url || prev.url,
+              url: best.url,
               targetPrice: si.targetPrice || prev.targetPrice,
               category: si.category || prev.category,
               imageUrl: si.imageUrl || prev.imageUrl,
               comments: si.comments !== undefined && si.comments !== '' ? si.comments : (prev.comments || ''),
               modelNumber: si.modelNumber || prev.modelNumber || '',
               notifyEmail: si.notifyEmail || prev.notifyEmail || '',
-              priceHistory6m: updatedHist
+              priceHistory6m: updatedHist,
+              offers: offersChanged ? [] : prev.offers
             };
           }
           return {
             id: 'sheet-' + Date.now() + '-' + idx,
             ...si,
+            bestPrice: best.bestPrice,
+            retailer: best.retailer,
+            url: best.url,
             targetPrice: si.targetPrice || null,
             promoCode: '',
-            whenToBuy: si.bestPrice < si.msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected',
-            priceHistory6m: buildDefaultHistory6m(si.msrp, si.bestPrice, si.bestPrice, si.msrp),
+            whenToBuy: best.bestPrice < si.msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected',
+            priceHistory6m: buildDefaultHistory6m(si.msrp, best.bestPrice, best.bestPrice, si.msrp),
             offers: [],
             forecasts: []
           };
