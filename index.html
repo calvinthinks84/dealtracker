@@ -2802,7 +2802,7 @@ Apply Standard Deal Query Criteria:
       for (const d of discovered) {
         if (!ordered.includes(d)) ordered.push(d);
       }
-      const candidateModels = ordered.slice(0, 4);
+      const candidateModels = ordered.slice(0, 8);
       let lastErr = '';
 
       const tryModel = async (modelId, useSearch) => {
@@ -2818,12 +2818,15 @@ Apply Standard Deal Query Criteria:
             body: JSON.stringify(payload)
           });
           if (resp.status === 429) {
-            await new Promise(r => setTimeout(r, 2500));
-            resp = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
+            const peekBody = await resp.clone().text().catch(() => '');
+            if (!/limit:\s*0|exceeded your current quota/i.test(peekBody)) {
+              await new Promise(r => setTimeout(r, 2500));
+              resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+            }
           }
           if (resp.ok) {
             const data = await resp.json();
@@ -2839,7 +2842,9 @@ Apply Standard Deal Query Criteria:
             parsed._groundedCount = groundedUrls.length;
             return parsed;
           }
-          if (resp.status !== 404 && resp.status !== 400) {
+          if (resp.status === 429) {
+            lastErr = 'Gemini API quota reached (429). Wait ~60s for per-minute quota to reset, or check your plan/billing at aistudio.google.com.';
+          } else if (resp.status !== 404 && resp.status !== 400) {
             const errBody = await resp.text().catch(() => '');
             lastErr = `Gemini API error (${resp.status}): ${errBody.slice(0, 140)}`;
           }
@@ -2852,6 +2857,7 @@ Apply Standard Deal Query Criteria:
       if (window._workingGeminiChoice && window._workingGeminiChoice.key === apiKey) {
         const fastRes = await tryModel(window._workingGeminiChoice.model, window._workingGeminiChoice.useSearch);
         if (fastRes) return fastRes;
+        window._workingGeminiChoice = null;
       }
 
       // Pass 1: Require live Google Search grounding first across candidate models
@@ -3136,7 +3142,7 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       let completedCount = 0;
       let nextIdx = 0;
       let lastErrorMsg = '';
-      const CONCURRENCY = Math.min(4, targets.length);
+      const CONCURRENCY = Math.min(2, targets.length);
 
       countEl.textContent = `0 of ${targets.length} (0%)`;
       titleEl.textContent = `Checking ${targets.length} active items (${CONCURRENCY} parallel searches)...`;
