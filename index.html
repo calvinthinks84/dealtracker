@@ -2299,7 +2299,8 @@ Return ONLY valid JSON with these keys:
     async function callGeminiWithSearch(rawKey, prompt) {
       const apiKey = String(rawKey || '').replace(/\s+/g, '');
       const discovered = await discoverActiveGeminiModels(apiKey);
-      const preferred = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
+      // Prioritize full Flash models (which support live Google Search grounding) over flash-lite
+      const preferred = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-3.5-flash-lite'];
       const ordered = [];
       for (const p of preferred) {
         if (discovered.length === 0 || discovered.includes(p)) ordered.push(p);
@@ -2307,26 +2308,34 @@ Return ONLY valid JSON with these keys:
       for (const d of discovered) {
         if (!ordered.includes(d)) ordered.push(d);
       }
-      const candidateModels = ordered.slice(0, 3);
+      const candidateModels = ordered.slice(0, 4);
       let lastErr = '';
 
-      const tryModel = async (modelId) => {
+      const tryModel = async (modelId, useSearch) => {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey)}`;
-        // 1) Try with Google Search grounding for live prices & deals
+        const payload = useSearch
+          ? { contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }
+          : { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } };
+
         try {
           const resp = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              tools: [{ google_search: {} }]
-            })
+            body: JSON.stringify(payload)
           });
           if (resp.ok) {
             const data = await resp.json();
-            const parts = data?.candidates?.[0]?.content?.parts || [];
+            const cand = data?.candidates?.[0];
+            const parts = cand?.content?.parts || [];
             const text = parts.map(p => p.text || '').join('\n');
-            return extractJsonObject(text);
+            const parsed = extractJsonObject(text);
+            const chunks = cand?.groundingMetadata?.groundingChunks || [];
+            const groundedUrls = chunks.map(c => c?.web?.uri).filter(Boolean);
+            if (!parsed.url && groundedUrls.length > 0) {
+              parsed.url = groundedUrls[0];
+            }
+            parsed._groundedCount = groundedUrls.length;
+            return parsed;
           }
           if (resp.status !== 404 && resp.status !== 400) {
             const errBody = await resp.text().catch(() => '');
@@ -2335,32 +2344,18 @@ Return ONLY valid JSON with these keys:
         } catch (e) {
           lastErr = `Network error (${e.message || 'Load failed'}) — check internet or Safari Content Blockers.`;
         }
-
-        // 2) Fallback without tools (standard JSON mode)
-        try {
-          const resp2 = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { responseMimeType: 'application/json' }
-            })
-          });
-          if (resp2.ok) {
-            const data2 = await resp2.json();
-            const text2 = data2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            return extractJsonObject(text2);
-          }
-          const errBody2 = await resp2.text().catch(() => '');
-          lastErr = `Gemini API error (${resp2.status}): ${errBody2.slice(0, 140)}`;
-        } catch (e2) {
-          lastErr = `Network error (${e2.message || 'Load failed'}) — check internet or Safari Content Blockers.`;
-        }
         return null;
       };
 
+      // Pass 1: Require live Google Search grounding first across candidate models
       for (const m of candidateModels) {
-        const res = await tryModel(m);
+        const res = await tryModel(m, true);
+        if (res && res._groundedCount > 0) return res;
+      }
+
+      // Pass 2: Fallback without search if grounding is unavailable for this key
+      for (const m of candidateModels) {
+        const res = await tryModel(m, false);
         if (res) return res;
       }
 
@@ -2473,7 +2468,8 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       btn.classList.remove('opacity-60');
       document.getElementById('ai-chat-input').value = '';
       closeModal('ai-modal');
-      showToast(`Added "${newItem.name}" & synced to Google Sheet`);
+      const verifiedNote = parsed._groundedCount ? ` (verified via ${parsed._groundedCount} live web sources)` : ' (ungrounded estimate — verify price)';
+      showToast(`Added "${newItem.name}" & synced to Google Sheet${verifiedNote}`);
     }
 
     // Voice recognition for talking directly to AI Smart Add
