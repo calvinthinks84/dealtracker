@@ -777,6 +777,284 @@
 
     const INITIAL_ITEMS = [];
 
+    let state = {
+      items: [],
+      search: '',
+      statusFilter: 'Current',
+      categoryFilter: 'All',
+      sortBy: 'nameAsc',
+      viewMode: 'cards',
+      selectedAnalyticsId: 'mbp-14-m6',
+      recalculatingId: null,
+      lastSyncedAt: 'Nov 26, 2026 · 7:41 PM'
+    };
+
+    let chartInstances = {};
+
+    function formatNowTimestamp() {
+      const now = new Date();
+      const datePart = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const timePart = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      return `${datePart} · ${timePart}`;
+    }
+
+    function formatIsoDateTime() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+
+    function buildDefaultHistory6m(msrp, bestPrice, low6m, high6m) {
+      const m = Number(msrp) || Number(bestPrice) || 0;
+      const b = Number(bestPrice) || m;
+      const hi = Number(high6m) || m;
+      const lo = Number(low6m) || b;
+      const mid = Number(((hi + lo) / 2).toFixed(2));
+      return [
+        { label: 'Jun (-5m)', price: hi },
+        { label: 'Jul (-4m)', price: mid },
+        { label: 'Aug (-3m)', price: hi },
+        { label: 'Sep (-2m)', price: mid },
+        { label: 'Oct (-1m)', price: lo },
+        { label: 'Now', price: b }
+      ];
+    }
+
+    function getItemHistory6m(item) {
+      if (Array.isArray(item.priceHistory6m) && item.priceHistory6m.length > 0) {
+        return item.priceHistory6m;
+      }
+      return buildDefaultHistory6m(item.msrp, item.bestPrice, item.low6m, item.high6m);
+    }
+
+    function loadState() {
+      state.items = JSON.parse(JSON.stringify(INITIAL_ITEMS));
+      state.lastSyncedAt = 'Syncing from Google Sheet...';
+    }
+
+    function saveState(updateSync = false) {
+      if (updateSync) {
+        state.lastSyncedAt = formatNowTimestamp();
+      }
+    }
+
+    function fmtCurrency(val) {
+      const n = Number(val);
+      if (Number.isNaN(n)) return '$0.00';
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function calcSavings(item) {
+      const msrp = Number(item.msrp) || 0;
+      const best = Number(item.bestPrice) || 0;
+      const dollar = Math.max(0, msrp - best);
+      const pct = msrp > 0 ? (dollar / msrp) * 100 : 0;
+      return { dollar, pct };
+    }
+
+    function getCashbackInfo(item) {
+      let pct = Number(item.cashbackPct);
+      let source = item.cashbackSource || '';
+      if (!pct || Number.isNaN(pct)) {
+        const txt = String(item.couponDetails || '');
+        const m = txt.match(/(\d+(?:\.\d+)?)%\s*(rakuten|cash\s*back|cashback|prime\s*visa|circle\s*card|redcard)/i);
+        if (m) {
+          pct = parseFloat(m[1]);
+          source = source || m[2];
+        } else {
+          pct = 0;
+        }
+      }
+      const best = Number(item.bestPrice) || 0;
+      const cashbackDollar = pct > 0 ? best * (pct / 100) : 0;
+      const netPrice = Math.max(0, best - cashbackDollar);
+      return { pct, source: source || 'Cashback', cashbackDollar, netPrice };
+    }
+
+    function calcTrend(item) {
+      const hist = getItemHistory6m(item);
+      if (!hist || hist.length < 2) return { dir: 'flat', pct: 0, diff: 0, label: '0.0% Flat' };
+      const start = Number(hist[0].price) || 0;
+      const end = Number(item.bestPrice ?? hist[hist.length - 1].price) || 0;
+      const diff = end - start;
+      const pct = start > 0 ? (diff / start) * 100 : 0;
+      if (diff < -0.01) {
+        return { dir: 'down', pct, diff, label: `↓ ${Math.abs(pct).toFixed(1)}% (${fmtCurrency(Math.abs(diff))} drop)` };
+      }
+      if (diff > 0.01) {
+        return { dir: 'up', pct, diff, label: `↑ +${pct.toFixed(1)}% (+${fmtCurrency(diff)})` };
+      }
+      return { dir: 'flat', pct: 0, diff: 0, label: '→ 0.0% Flat' };
+    }
+
+    function trendBadgeHTML(item) {
+      const t = calcTrend(item);
+      if (t.dir === 'down') {
+        return `<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20"><i data-lucide="trending-down" class="h-3 w-3"></i>${escapeHtml(t.label)}</span>`;
+      }
+      if (t.dir === 'up') {
+        return `<span class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-inset ring-rose-600/20"><i data-lucide="trending-up" class="h-3 w-3"></i>${escapeHtml(t.label)}</span>`;
+      }
+      return `<span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600"><i data-lucide="minus" class="h-3 w-3"></i>${escapeHtml(t.label)}</span>`;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      toastMsg.textContent = msg;
+      toast.classList.remove('translate-y-4', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-4', 'opacity-0');
+      }, 2400);
+    }
+
+    function copyText(text, label) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(`Copied "${text}" (${label})`);
+        }).catch(() => fallbackCopy(text, label));
+      } else {
+        fallbackCopy(text, label);
+      }
+    }
+
+    function fallbackCopy(text, label) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast(`Copied "${text}" (${label})`);
+      } catch (e) {
+        showToast('Could not copy automatically');
+      }
+      document.body.removeChild(ta);
+    }
+
+    function getFilteredItems() {
+      const q = state.search.trim().toLowerCase();
+      let list = state.items.filter(item => {
+        if (state.statusFilter === 'Current' && item.status === 'Purchased') return false;
+        else if (state.statusFilter !== 'All' && state.statusFilter !== 'Current' && item.status !== state.statusFilter) return false;
+        if (state.categoryFilter !== 'All' && item.category !== state.categoryFilter) return false;
+        if (q) {
+          const hay = [item.name, item.config, item.retailer, item.promoCode, item.couponDetails, item.category, item.whenToBuy]
+            .filter(Boolean).join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      list.sort((a, b) => {
+        const sa = calcSavings(a);
+        const sb = calcSavings(b);
+        switch (state.sortBy) {
+          case 'savingsPctDesc': return sb.pct - sa.pct;
+          case 'savingsDollarDesc': return sb.dollar - sa.dollar;
+          case 'priceAsc': return (Number(a.bestPrice) || 0) - (Number(b.bestPrice) || 0);
+          case 'priceDesc': return (Number(b.bestPrice) || 0) - (Number(a.bestPrice) || 0);
+          case 'nameAsc': return a.name.localeCompare(b.name);
+          default: return 0;
+        }
+      });
+      return list;
+    }
+
+    function whenToBuyBadgeClass(verdict) {
+      const v = String(verdict || '').toLowerCase();
+      if (v.includes('buy now')) return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20';
+      if (v.includes('wait')) return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20';
+      return 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-600/20';
+    }
+
+    function renderKPIs() {
+      const activePool = state.items.filter(i => i.status !== 'Purchased');
+      const totalMsrp = activePool.reduce((acc, i) => acc + (Number(i.msrp) || 0), 0);
+      const totalBest = activePool.reduce((acc, i) => acc + (Number(i.bestPrice) || 0), 0);
+      const totalSaved = Math.max(0, totalMsrp - totalBest);
+      const totalCashback = activePool.reduce((acc, i) => acc + getCashbackInfo(i).cashbackDollar, 0);
+      const avgPct = totalMsrp > 0 ? (totalSaved / totalMsrp) * 100 : 0;
+      const maxPct = activePool.reduce((m, i) => Math.max(m, calcSavings(i).pct), 0);
+      const activeDealsCount = state.items.filter(i => i.status === 'Deal Active').length;
+      const targetHitsCount = activePool.filter(i => i.targetPrice && Number(i.bestPrice) <= Number(i.targetPrice)).length;
+
+      const kpis = [
+        { label: 'Total Wishlist Value', value: fmtCurrency(totalMsrp), sub: `${activePool.length} active items`, icon: 'shopping-bag', tone: 'text-slate-900', bg: 'bg-slate-100 text-slate-600' },
+        { label: 'Current Best Value', value: fmtCurrency(totalBest), sub: `${avgPct.toFixed(1)}% below MSRP`, icon: 'sparkles', tone: 'text-indigo-700', bg: 'bg-indigo-50 text-indigo-600' },
+        { label: 'Total Savings ($)', value: fmtCurrency(totalSaved + totalCashback), sub: totalCashback > 0 ? `Includes ${fmtCurrency(totalCashback)} cashback` : 'Across tracked deals', icon: 'piggy-bank', tone: 'text-emerald-700', bg: 'bg-emerald-50 text-emerald-600' },
+        { label: 'Max Savings Rate', value: `${maxPct.toFixed(1)}%`, sub: 'Highest item discount', icon: 'percent', tone: 'text-amber-700', bg: 'bg-amber-50 text-amber-600' },
+        { label: 'Active Deals', value: `${activeDealsCount}`, sub: `${targetHitsCount} target price hit${targetHitsCount === 1 ? '' : 's'}`, icon: 'flame', tone: 'text-rose-700', bg: 'bg-rose-50 text-rose-600' }
+      ];
+
+      const strip = document.getElementById('kpi-strip');
+      strip.innerHTML = kpis.map(k => `
+        <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">${k.label}</span>
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg ${k.bg}">
+              <i data-lucide="${k.icon}" class="h-3.5 w-3.5"></i>
+            </span>
+          </div>
+          <div class="mt-2 text-xl font-extrabold tabular-nums ${k.tone} sm:text-2xl">${k.value}</div>
+          <div class="mt-0.5 text-xs text-slate-500">${k.sub}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderStatusPills() {
+      const counts = {
+        Current: state.items.filter(i => i.status !== 'Purchased').length,
+        'Deal Active': state.items.filter(i => i.status === 'Deal Active').length,
+        Monitoring: state.items.filter(i => i.status === 'Monitoring').length,
+        Purchased: state.items.filter(i => i.status === 'Purchased').length,
+        All: state.items.length
+      };
+      const container = document.getElementById('status-pills');
+      container.className = 'flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 sm:pb-0 sm:flex-wrap';
+      container.innerHTML = Object.entries(counts).map(([label, count]) => {
+        const active = state.statusFilter === label;
+        const cls = active
+          ? 'bg-indigo-600 text-white shadow-sm'
+          : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70';
+        return `
+          <button
+            type="button"
+            data-status="${label}"
+            class="status-pill shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${cls}"
+          >
+            <span>${label}</span>
+            <span class="rounded-full ${active ? 'bg-indigo-500 text-white' : 'bg-white text-slate-600'} px-1.5 py-0.2 text-[10px]">${count}</span>
+          </button>
+        `;
+      }).join('');
+
+      container.querySelectorAll('.status-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.statusFilter = btn.dataset.status;
+          renderAll();
+        });
+      });
+    }
+
+    function updateViewTabs() {
+      document.querySelectorAll('.view-tab').forEach(btn => {
+        const active = btn.dataset.view === state.viewMode;
+        if (active) {
+          btn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+          btn.classList.remove('text-slate-600', 'hover:text-slate-900');
+        } else {
+          btn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+          btn.classList.add('text-slate-600', 'hover:text-slate-900');
+        }
+      });
+    }
+
     const PRODUCT_IMAGE_MAP = [
       { match: 'macbook', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQBq6oxNBypKLUJuhF2bpxkemVCXMryfCbHUaBOn3ZXe8O39Isa0Ako8apU&s=10' },
       { match: 'airpods pro', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQXqjF_D0nu4UQAGIwy3ym_oq2scAV6MEzvjLETO_YzcxTEyulg5AKDcpc&s=10' },
