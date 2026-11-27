@@ -645,14 +645,21 @@
         <input type="hidden" id="report-item-id" />
         <div id="report-current-summary" class="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"></div>
         <div>
-          <label for="report-note" class="block text-xs font-semibold text-slate-700">What looks wrong? (optional)</label>
-          <textarea id="report-note" rows="2" placeholder="e.g. Price is now $169 at Amazon, Walmart out of stock, or wrong model..." class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"></textarea>
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">What looks wrong? (tap to fill or type feedback below)</label>
+          <div id="report-quick-chips" class="flex flex-wrap gap-1.5 mb-2">
+            <button type="button" data-reason="Price is higher or lower than listed" class="report-chip rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800">Price is wrong</button>
+            <button type="button" data-reason="Item is out of stock at this retailer" class="report-chip rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800">Out of stock</button>
+            <button type="button" data-reason="Wrong model number or configuration" class="report-chip rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800">Wrong model</button>
+            <button type="button" data-reason="Deal link is broken or opens wrong item" class="report-chip rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800">Link broken</button>
+            <button type="button" data-reason="Better promo code or cashback available" class="report-chip rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800">Better promo</button>
+          </div>
+          <textarea id="report-note" rows="2" placeholder="Describe what is wrong (e.g. Price is $169 at Amazon, or out of stock at Walmart)..." class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"></textarea>
         </div>
         <div id="report-key-box" class="hidden rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2">
           <label for="report-api-key" class="block text-[11px] font-semibold text-amber-900">Gemini API Key (saved once in browser for live search)</label>
           <input id="report-api-key" type="password" placeholder="AIza..." class="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs focus:border-amber-500 focus:outline-none" />
         </div>
-        <p id="report-status" class="hidden text-xs font-medium"></p>
+        <div id="report-status" class="hidden rounded-xl border px-3 py-2.5 text-xs font-medium"></div>
         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <button id="btn-report-manual" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit Manually</button>
           <div class="flex items-center gap-2">
@@ -886,7 +893,7 @@
         retailer: 'Ravensburger North America (Official)',
         promoCode: '',
         couponDetails: 'None needed (15% instant holiday sale; free delivery)',
-        otherPrices: 'eBay $80.00 + $15.50 shipping ($95.50 total)',
+        otherPrices: "Lala's Wee Loft $87.99 | Flying Pig Toys $89.99 | Maziply Toys $89.99 | Snickelfritz Toys $89.99 | eBay $95.50 ($80 + $15.50 ship) | Amazon (ASIN B000B75PV6)",
         history6m: '$76.49 - $89.99 (Full retail to 15% seasonal promotional discount)',
         priceHistory6m: [
           { label: 'Jun 2026', price: 89.99 },
@@ -902,8 +909,13 @@
         lastChecked: '2026-11-26 19:41',
         url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed',
         offers: [
-          { retailer: 'Ravensburger North America (Official)', listed: 89.99, promo: '15% instant holiday sale', net: 76.49, fulfillment: 'In Stock (Free delivery)', perks: 'Official direct storefront', rating: 'Deal Active ($76.49)', url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed' },
-          { retailer: 'eBay', listed: 80.00, promo: '+ $15.50 shipping', net: 95.50, fulfillment: 'Standard shipping', perks: '3P Marketplace', rating: 'Above MSRP ($95.50)', url: 'https://www.ebay.com/itm/297743098023' }
+          { retailer: 'Ravensburger North America (Official)', listed: 89.99, promo: '15% instant holiday sale', net: 76.49, fulfillment: 'In Stock (Free delivery)', perks: 'Official direct storefront', rating: 'Best Deal ($76.49)', url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed' },
+          { retailer: "Lala's Wee Loft", listed: 87.99, promo: 'Below MSRP ($2 off)', net: 87.99, fulfillment: 'Backordered (Ships in 2-4 days / SoCal pickup)', perks: 'Corona Del Mar & Dana Point local pickup', rating: 'Specialty Toy ($87.99)', url: 'https://lalasweeloft.com/products/brio-my-first-railway-battery-train-set-33710' },
+          { retailer: 'Flying Pig Toys', listed: 89.99, promo: 'None (MSRP)', net: 89.99, fulfillment: 'In Stock (Free ship >$125)', perks: 'Authorized US BRIO retailer', rating: 'In Stock ($89.99)', url: 'https://flyingpigtoys.com/products/brio-world-train-set-my-first-railway-battery-train-set' },
+          { retailer: 'Maziply Toys', listed: 89.99, promo: 'None (MSRP)', net: 89.99, fulfillment: 'Online US Stockist', perks: 'Authorized Ravensburger/BRIO dealer', rating: 'Authorized ($89.99)', url: 'https://www.maziply.com/products/brio-my-first-railway-battery-train-set-33710-7312350337105' },
+          { retailer: 'Snickelfritz Toys', listed: 89.99, promo: 'None (MSRP)', net: 89.99, fulfillment: 'Ships in 3-6 business days', perks: '30-day returns', rating: 'In Stock ($89.99)', url: 'https://www.snickelfritztoys.com/shop/Plush/Warmies/p/BRIO-My-First-Railway-Train-Set.htm' },
+          { retailer: 'eBay (New in Box)', listed: 80.00, promo: '+ $15.50 shipping', net: 95.50, fulfillment: 'Standard shipping', perks: '3P Marketplace', rating: 'Above MSRP ($95.50)', url: 'https://www.ebay.com/itm/297743098023' },
+          { retailer: 'Amazon (ASIN B000B75PV6)', listed: 0, promo: 'Check live Amazon / 3P sellers', net: 0, fulfillment: 'See Amazon product page', perks: '5% back with Prime Visa if in stock', rating: 'Check Amazon', url: 'https://www.amazon.com/dp/B000B75PV6' }
         ],
         forecasts: []
       },
@@ -1026,6 +1038,7 @@
       sortBy: 'nameAsc',
       viewMode: 'cards',
       selectedAnalyticsId: 'mbp-14-m6',
+      recalculatingId: null,
       lastSyncedAt: 'Nov 26, 2026 · 7:41 PM'
     };
 
@@ -1369,6 +1382,9 @@
       if (r.includes('bombas')) return 'https://bombas.com/products/men-s-solid-ankle-four-pack';
       if (r.includes('shark')) return 'https://www.sharkninja.com/shark-wandvac-cordless-handheld-vacuum/WV201.html';
       if (r.includes('herman miller')) return 'https://store.hermanmiller.com/gaming-chairs/embody-gaming-chair/100160889.html?lang=en_US';
+      if (r.includes('lala')) return 'https://lalasweeloft.com/products/brio-my-first-railway-battery-train-set-33710';
+      if (r.includes('flying pig')) return 'https://flyingpigtoys.com/products/brio-world-train-set-my-first-railway-battery-train-set';
+      if (r.includes('maziply')) return 'https://www.maziply.com/products/brio-my-first-railway-battery-train-set-33710-7312350337105';
       return `https://www.google.com/search?tbm=shop&q=${q}`;
     }
 
@@ -1540,7 +1556,7 @@
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center justify-between gap-1.5">
                         <span class="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">${escapeHtml(item.category)}</span>
-                        ${statusBadgeHTML(item)}
+                        ${state.recalculatingId === item.id ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 animate-pulse"><i data-lucide="refresh-cw" class="h-3 w-3 animate-spin"></i>Re-processing...</span>` : statusBadgeHTML(item)}
                       </div>
                       <h3 class="mt-1.5 text-base font-bold leading-snug text-slate-900">${escapeHtml(item.name)}</h3>
                       ${getItemModel(item) ? `<div class="mt-1"><span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">Model: ${escapeHtml(getItemModel(item))}</span></div>` : ''}
@@ -1983,7 +1999,7 @@
                   ${offers.map(o => `
                     <tr>
                       <td class="px-3 py-2.5 font-semibold text-slate-900">${escapeHtml(o.retailer)}</td>
-                      <td class="whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">${fmtCurrency(o.net)}</td>
+                      <td class="whitespace-nowrap px-3 py-2.5 text-right font-bold tabular-nums text-slate-900">${o.net > 0 ? fmtCurrency(o.net) : '<span class="text-slate-500 font-medium">Check Site</span>'}</td>
                       <td class="px-3 py-2.5 text-slate-600">${escapeHtml(o.promo)}</td>
                       <td class="px-3 py-2.5 text-slate-500">
                         <div>${escapeHtml(o.fulfillment)}</div>
@@ -3146,6 +3162,16 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       if (window.lucide) lucide.createIcons();
     }
 
+    document.querySelectorAll('.report-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const ta = document.getElementById('report-note');
+        const r = chip.dataset.reason || '';
+        if (!ta.value.trim()) ta.value = r;
+        else if (!ta.value.includes(r)) ta.value = ta.value.trim() + '; ' + r;
+        ta.focus();
+      });
+    });
+
     document.getElementById('close-report-modal').addEventListener('click', () => closeModal('report-modal'));
     document.getElementById('cancel-report-modal').addEventListener('click', () => closeModal('report-modal'));
     document.getElementById('report-modal').addEventListener('click', e => {
@@ -3177,11 +3203,16 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
 
       const note = document.getElementById('report-note').value.trim();
       const model = getItemModel(item);
+      state.recalculatingId = id;
+      renderAll();
       btn.disabled = true;
-      btn.classList.add('opacity-60');
-      st.textContent = 'Searching live 2026 retailer prices, promos & cashback...';
-      st.className = 'text-xs font-medium text-indigo-600';
+      btn.classList.add('opacity-75');
+      btn.innerHTML = '<i data-lucide="refresh-cw" class="h-3.5 w-3.5 animate-spin"></i><span>Re-processing...</span>';
+      if (window.lucide) lucide.createIcons();
+      st.innerHTML = '<div class="flex items-center gap-2"><i data-lucide="refresh-cw" class="h-3.5 w-3.5 animate-spin text-amber-600 shrink-0"></i><span>Re-processing live 2026 retailer prices, promos &amp; cashback with your feedback...</span></div>';
+      st.className = 'rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-medium text-amber-900';
       st.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
 
       const prompt = `Re-verify and recalculate the LIVE current US retail deal price as of today for this exact product:
 Name: ${item.name}
@@ -3246,11 +3277,15 @@ Apply Standard Deal Query Criteria:
         showToast(`Recalculated ${updated.name}: ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`);
       } catch (err) {
         st.textContent = err.message || 'Live search failed. Check your API key or try Edit Manually.';
-        st.className = 'text-xs font-medium text-rose-600';
+        st.className = 'rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-medium text-rose-700';
         st.classList.remove('hidden');
       } finally {
+        state.recalculatingId = null;
+        renderAll();
         btn.disabled = false;
-        btn.classList.remove('opacity-60');
+        btn.classList.remove('opacity-75');
+        btn.innerHTML = '<i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i><span>Recalculate Search</span>';
+        if (window.lucide) lucide.createIcons();
       }
     });
 
