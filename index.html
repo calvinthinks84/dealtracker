@@ -2842,16 +2842,27 @@ Return ONLY valid JSON with these keys:
         return null;
       };
 
+      if (window._workingGeminiChoice && window._workingGeminiChoice.key === apiKey) {
+        const fastRes = await tryModel(window._workingGeminiChoice.model, window._workingGeminiChoice.useSearch);
+        if (fastRes) return fastRes;
+      }
+
       // Pass 1: Require live Google Search grounding first across candidate models
       for (const m of candidateModels) {
         const res = await tryModel(m, true);
-        if (res && res._groundedCount > 0) return res;
+        if (res && res._groundedCount > 0) {
+          window._workingGeminiChoice = { key: apiKey, model: m, useSearch: true };
+          return res;
+        }
       }
 
       // Pass 2: Fallback without search if grounding is unavailable for this key
       for (const m of candidateModels) {
         const res = await tryModel(m, false);
-        if (res) return res;
+        if (res) {
+          window._workingGeminiChoice = { key: apiKey, model: m, useSearch: false };
+          return res;
+        }
       }
 
       throw new Error(lastErr || 'No available Gemini Flash model found for this API key.');
@@ -3115,21 +3126,18 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
 
       let updatedCount = 0;
       let failedCount = 0;
+      let completedCount = 0;
+      let nextIdx = 0;
       let lastErrorMsg = '';
+      const CONCURRENCY = Math.min(4, targets.length);
 
-      for (let idx = 0; idx < targets.length; idx++) {
-        if (batchCancelRequested) break;
-        const item = targets[idx];
+      countEl.textContent = `0 of ${targets.length} (0%)`;
+      titleEl.textContent = `Checking ${targets.length} active items (${CONCURRENCY} parallel searches)...`;
+      subEl.textContent = `Running fast parallel live 2026 retail price, promo & prediction checks...`;
+      barEl.style.width = '4%';
+
+      async function processItem(item) {
         const model = getItemModel(item);
-        const pct = Math.round((idx / targets.length) * 100);
-        countEl.textContent = `Item ${idx + 1} of ${targets.length} (${pct}%)`;
-        titleEl.textContent = `Checking & updating: ${item.name}${model ? ' · ' + model : ''}`;
-        subEl.textContent = `Populating live 2026 retail price, promos, cashback & buy-timing prediction (currently ${fmtCurrency(item.bestPrice)} at ${item.retailer || 'Retailer'})...`;
-        barEl.style.width = `${Math.max(4, pct)}%`;
-
-        state.recalculatingId = item.id;
-        renderAll();
-
         const prompt = `Re-verify and update the LIVE current US retail deal price and price prediction as of today for this exact product:
 Name: ${item.name}
 ${model ? 'Model / Part #: ' + model : ''}
@@ -3157,7 +3165,6 @@ Apply Standard Deal Query Criteria:
   "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
   "projection": string
 }`;
-
         try {
           const parsed = await callGeminiWithSearch(apiKey, prompt);
           const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
@@ -3189,22 +3196,35 @@ Apply Standard Deal Query Criteria:
           saveState(true);
           pushItemToGoogleSheet(updated, 'update');
           updatedCount++;
-          lastEl.textContent = `Updated ${idx + 1}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer} (${updated.whenToBuy})`;
+          completedCount++;
+          const donePct = Math.round((completedCount / targets.length) * 100);
+          countEl.textContent = `${completedCount} of ${targets.length} (${donePct}%)`;
+          titleEl.textContent = `Updating (${completedCount}/${targets.length}) — latest: ${updated.name}`;
+          barEl.style.width = `${Math.max(4, donePct)}%`;
+          lastEl.textContent = `Updated ${completedCount}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer} (${updated.whenToBuy})`;
           lastEl.classList.remove('hidden');
+          renderAll();
         } catch (err) {
           failedCount++;
+          completedCount++;
           lastErrorMsg = err.message || 'Lookup failed';
-          lastEl.textContent = `Skipped ${idx + 1}/${targets.length}: ${item.name} (${lastErrorMsg})`;
+          const donePct = Math.round((completedCount / targets.length) * 100);
+          countEl.textContent = `${completedCount} of ${targets.length} (${donePct}%)`;
+          barEl.style.width = `${Math.max(4, donePct)}%`;
+          lastEl.textContent = `Skipped ${completedCount}/${targets.length}: ${item.name} (${lastErrorMsg})`;
           lastEl.classList.remove('hidden');
         }
+      }
 
-        const donePct = Math.round(((idx + 1) / targets.length) * 100);
-        barEl.style.width = `${donePct}%`;
-        countEl.textContent = `Item ${idx + 1} of ${targets.length} (${donePct}%)`;
-        if (idx < targets.length - 1 && !batchCancelRequested) {
-          await new Promise(r => setTimeout(r, 350));
+      async function worker() {
+        while (!batchCancelRequested) {
+          const i = nextIdx++;
+          if (i >= targets.length) break;
+          await processItem(targets[i]);
         }
       }
+
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
       state.recalculatingId = null;
       batchUpdating = false;
