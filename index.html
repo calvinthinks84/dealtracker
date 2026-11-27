@@ -1178,6 +1178,29 @@
       { match: 'simplehuman', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIfgPghO8DfOpLJfOh7fFCMo-4hCSOYPz1stLXo6WDp03BMIcQmXZh0Hc&s=10' }
     ];
 
+    const PRODUCT_URL_MAP = [
+      { match: 'breville', url: 'https://www.williams-sonoma.com/products/breville-smart-oven-air/' },
+      { match: 'wh-1000xm6', url: 'https://www.tomsguide.com/audio/headphones/black-friday-headphone-deals-november-26-2026' },
+      { match: 'samsung t7', url: 'https://www.bhphotovideo.com/c/product/1559836-REG/samsung_mu_pc1t0t_am_1tb_t7_portable_ssd.html?ap=y&smp=Y' },
+      { match: 'apple tv', url: 'https://www.amazon.com/s?k=Apple+TV+4K+3rd+Generation' }
+    ];
+
+    function getDealUrl(item) {
+      if (item.url && String(item.url).startsWith('http')) return item.url;
+      const n = String(item.name || '').toLowerCase();
+      const matched = PRODUCT_URL_MAP.find(p => n.includes(p.match));
+      if (matched) return matched.url;
+      const r = String(item.retailer || '').toLowerCase();
+      const q = encodeURIComponent(item.name || '');
+      if (r.includes('amazon')) return `https://www.amazon.com/s?k=${q}`;
+      if (r.includes('best buy')) return `https://www.bestbuy.com/site/searchpage.jsp?st=${q}`;
+      if (r.includes('walmart')) return `https://www.walmart.com/search?q=${q}`;
+      if (r.includes('target')) return `https://www.target.com/s?searchTerm=${q}`;
+      if (r.includes('costco')) return `https://www.costco.com/CatalogSearch?keyword=${q}`;
+      if (r.includes('b&h')) return `https://www.bhphotovideo.com/c/search?q=${q}`;
+      return `https://www.google.com/search?tbm=shop&q=${q}`;
+    }
+
     function getItemThumbHTML(item) {
       const n = String(item.name || '').toLowerCase();
       const matched = PRODUCT_IMAGE_MAP.find(p => n.includes(p.match));
@@ -1404,17 +1427,15 @@
                       <i data-lucide="line-chart" class="h-3.5 w-3.5"></i>
                       <span>6-Mo Graph &amp; Offers${offersCount ? ` (${offersCount})` : ''}</span>
                     </button>
-                    ${item.url ? `
-                      <a
-                        href="${escapeHtml(item.url)}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
-                      >
-                        <span>Deal</span>
-                        <i data-lucide="external-link" class="h-3 w-3"></i>
-                      </a>
-                    ` : ''}
+                    <a
+                      href="${escapeHtml(getDealUrl(item))}"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      <span>Open Deal</span>
+                      <i data-lucide="external-link" class="h-3 w-3"></i>
+                    </a>
                   </div>
                   <div class="flex items-center gap-1">
                     <button
@@ -1500,7 +1521,7 @@
                       <td class="whitespace-nowrap px-4 py-3 text-right">
                         <div class="inline-flex items-center gap-1">
                           <button type="button" data-detail-id="${item.id}" class="detail-btn rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200">Graph</button>
-                          ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">Link</a>` : ''}
+                          <a href="${escapeHtml(getDealUrl(item))}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">Open Deal</a>
                           <button type="button" data-edit-id="${item.id}" class="edit-btn rounded p-1 text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="h-3.5 w-3.5"></i></button>
                         </div>
                       </td>
