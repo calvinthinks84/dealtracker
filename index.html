@@ -1336,7 +1336,7 @@
       { match: 'wandvac', url: 'https://www.sharkninja.com/shark-wandvac-cordless-handheld-vacuum/WV201.html' },
       { match: 'embody', url: 'https://store.hermanmiller.com/gaming-chairs/embody-gaming-chair/100160889.html?lang=en_US' },
       { match: 'imac', url: 'https://www.bhphotovideo.com/c/product/2010225-REG/apple_mh064ll_a_24_imac_with_retina.html' },
-      { match: 'mac mini', url: 'https://www.costco.com/p/-/mac-mini-desktop-computer-apple-m6-chip-built-for-apple-intelligence/4000444297' },
+      { match: 'mac mini', url: 'https://www.microcenter.com/product/715409/apple-mac-mini-mhqk4ll-a-(mid-2026)-desktop-computer' },
       { match: 'b6e', url: 'https://www.bestbuy.com/product/lg-55-class-b6e-oled-ai-4k-smart-webos-tv-with-perfect-black-and-vivid-color-2026/JJ8VPZZ7PZ/sku/6680628' },
       { match: 'bravia 6', url: 'https://electronics.sony.com/tv-video/televisions/all-tvs/p/k55a60' },
       { match: '27us500', url: 'https://www.lg.com/us/monitors/lg-27us500-w-4k-uhd-monitor' }
@@ -1379,7 +1379,10 @@
       if (r.includes('best buy')) return `https://www.bestbuy.com/site/searchpage.jsp?st=${q}`;
       if (r.includes('walmart')) return `https://www.walmart.com/search?q=${q}`;
       if (r.includes('target')) return `https://www.target.com/s?searchTerm=${q}`;
-      if (r.includes('costco')) return `https://www.costco.com/CatalogSearch?keyword=${q}`;
+      if (r.includes('costco')) {
+        if (String(itemName || '').toLowerCase().includes('mac mini')) return 'https://www.costco.com/CatalogSearch?keyword=MHQK4LL%2FA';
+        return `https://www.costco.com/CatalogSearch?keyword=${q}`;
+      }
       if (r.includes('b&h')) return `https://www.bhphotovideo.com/c/search?q=${q}`;
       if (r.includes('williams')) return `https://www.williams-sonoma.com/search/results.html?words=${q}`;
       if (r.includes('apple')) return `https://www.apple.com/us/search/${q}`;
