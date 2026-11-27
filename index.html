@@ -2186,6 +2186,8 @@
       const cUrl = col('source url');
       const cTarget = col('target price');
       const cImg = col('image url');
+      const cCat = col('category');
+      const cNotes = col('comments');
 
       const cleanNum = v => parseFloat(String(v || '0').replace(/[^0-9.]/g, '')) || 0;
       const inferCategory = name => {
@@ -2215,7 +2217,7 @@
         parsed.push({
           name,
           config: cConfig !== -1 ? (r[cConfig] || '').trim() : '',
-          category: inferCategory(name),
+          category: (cCat !== -1 && r[cCat] && r[cCat].trim()) ? r[cCat].trim() : inferCategory(name),
           msrp,
           bestPrice,
           retailer: cRetailer !== -1 ? (r[cRetailer] || '').trim() : '',
@@ -2227,7 +2229,8 @@
           lastChecked: cChecked !== -1 && r[cChecked] ? r[cChecked].trim() : formatIsoDateTime(),
           url: validUrl,
           targetPrice: cTarget !== -1 && r[cTarget] ? cleanNum(r[cTarget]) : null,
-          imageUrl: cImg !== -1 && r[cImg] && r[cImg].startsWith('http') ? r[cImg].trim() : ''
+          imageUrl: cImg !== -1 && r[cImg] && r[cImg].startsWith('http') ? r[cImg].trim() : '',
+          comments: cNotes !== -1 && r[cNotes] ? r[cNotes].trim() : ''
         });
       }
       return parsed;
@@ -2278,7 +2281,9 @@
               lastChecked: si.lastChecked || prev.lastChecked,
               url: si.url || prev.url,
               targetPrice: si.targetPrice || prev.targetPrice,
+              category: si.category || prev.category,
               imageUrl: si.imageUrl || prev.imageUrl,
+              comments: si.comments !== undefined && si.comments !== '' ? si.comments : (prev.comments || ''),
               priceHistory6m: updatedHist
             };
           }
