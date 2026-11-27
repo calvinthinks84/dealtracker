@@ -661,10 +661,13 @@
         </div>
         <div id="report-status" class="hidden rounded-xl border px-3 py-2.5 text-xs font-medium"></div>
         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-          <button id="btn-report-manual" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit Manually</button>
+          <div class="flex items-center gap-1.5">
+            <button id="btn-report-manual" type="button" class="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit</button>
+            <button id="btn-save-flag" type="button" class="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100">Save Flag</button>
+          </div>
           <div class="flex items-center gap-2">
             <button id="cancel-report-modal" type="button" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-            <button id="btn-run-recalc" type="submit" class="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700">
+            <button id="btn-run-recalc" type="submit" class="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-700">
               <i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i>
               <span>Recalculate Search</span>
             </button>
@@ -1581,7 +1584,7 @@
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center justify-between gap-1.5">
                         <span class="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">${escapeHtml(item.category)}</span>
-                        ${state.recalculatingId === item.id ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 animate-pulse"><i data-lucide="refresh-cw" class="h-3 w-3 animate-spin"></i>Re-processing...</span>` : statusBadgeHTML(item)}
+                        ${state.recalculatingId === item.id ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 animate-pulse"><i data-lucide="refresh-cw" class="h-3 w-3 animate-spin"></i>Re-processing...</span>` : (String(item.comments || '').includes('[Flagged:') ? `<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800"><i data-lucide="flag" class="h-3 w-3"></i>Flagged for Fix</span>` : statusBadgeHTML(item))}
                       </div>
                       <h3 class="mt-1.5 text-base font-bold leading-snug text-slate-900">${escapeHtml(item.name)}</h3>
                       ${getItemModel(item) ? `<div class="mt-1"><span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">Model: ${escapeHtml(getItemModel(item))}</span></div>` : ''}
@@ -1715,9 +1718,10 @@
                       type="button"
                       title="Report Price & Recalculate"
                       data-report-id="${item.id}"
-                      class="report-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-600"
+                      class="report-btn inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50/80 border border-amber-200/70 transition hover:bg-amber-100"
                     >
-                      <i data-lucide="flag" class="h-4 w-4"></i>
+                      <i data-lucide="flag" class="h-3.5 w-3.5"></i>
+                      <span>Report</span>
                     </button>
                     <button
                       type="button"
@@ -3247,10 +3251,38 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
     document.getElementById('report-modal').addEventListener('click', e => {
       if (e.target.id === 'report-modal') closeModal('report-modal');
     });
+    document.addEventListener('click', e => {
+      const rBtn = e.target.closest('.report-btn');
+      if (rBtn && rBtn.dataset.reportId) {
+        e.preventDefault();
+        openReportModal(rBtn.dataset.reportId);
+      }
+    });
+
     document.getElementById('btn-report-manual').addEventListener('click', () => {
       const id = document.getElementById('report-item-id').value;
       closeModal('report-modal');
       openFormModal(id);
+    });
+
+    document.getElementById('btn-save-flag').addEventListener('click', () => {
+      const id = document.getElementById('report-item-id').value;
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+      const note = document.getElementById('report-note').value.trim() || 'Price/link needs review';
+      const flagTag = `[Flagged: ${note}]`;
+      const prevComments = String(item.comments || '').replace(/\[Flagged:[^\]]*\]\s*/g, '').trim();
+      const updated = {
+        ...item,
+        comments: prevComments ? `${flagTag} ${prevComments}` : flagTag,
+        lastChecked: formatDateISO()
+      };
+      state.items = state.items.map(i => i.id === id ? updated : i);
+      saveState(true);
+      renderAll();
+      pushItemToGoogleSheet(updated, 'update');
+      closeModal('report-modal');
+      showToast(`Flagged ${item.name} & synced feedback to Sheet`);
     });
     document.getElementById('report-form').addEventListener('submit', async e => {
       e.preventDefault();
