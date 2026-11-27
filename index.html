@@ -3043,7 +3043,7 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       lastEl.classList.add('hidden');
       lastEl.textContent = '';
 
-      const apiKey = getSavedGeminiKey();
+      const apiKey = loadGeminiKey();
       if (!apiKey) {
         keyBox.classList.remove('hidden');
         countEl.textContent = 'API Key Needed';
@@ -3203,7 +3203,7 @@ Apply Standard Deal Query Criteria:
     document.getElementById('btn-batch-start-with-key').addEventListener('click', () => {
       const k = document.getElementById('batch-api-key').value.trim();
       if (!k) return;
-      setSavedGeminiKey(k);
+      saveGeminiKey(k);
       runBatchPriceUpdate();
     });
     document.getElementById('close-ai-modal').addEventListener('click', () => closeModal('ai-modal'));
@@ -3254,7 +3254,7 @@ Apply Standard Deal Query Criteria:
       st.classList.add('hidden');
       st.textContent = '';
       const keyBox = document.getElementById('report-key-box');
-      if (!getSavedGeminiKey()) keyBox.classList.remove('hidden');
+      if (!loadGeminiKey()) keyBox.classList.remove('hidden');
       else keyBox.classList.add('hidden');
       const m = document.getElementById('report-modal');
       m.classList.remove('hidden');
@@ -3324,8 +3324,8 @@ Apply Standard Deal Query Criteria:
       const item = state.items.find(i => i.id === id);
       if (!item) return;
       const typedKey = document.getElementById('report-api-key').value.trim();
-      if (typedKey) setSavedGeminiKey(typedKey);
-      const apiKey = getSavedGeminiKey();
+      if (typedKey) saveGeminiKey(typedKey);
+      const apiKey = loadGeminiKey();
       const st = document.getElementById('report-status');
       const btn = document.getElementById('btn-run-recalc');
 
