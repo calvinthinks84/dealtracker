@@ -1836,7 +1836,10 @@
           }
           saveState(true);
           renderAll();
-          if (target) showToast(`Removed "${target.name}"`);
+          if (target) {
+            pushItemToGoogleSheet(target, 'delete');
+            showToast(`Removed "${target.name}" & synced to Google Sheet`);
+          }
         });
       });
       document.querySelectorAll('.toggle-purchased-btn').forEach(btn => {
@@ -1984,14 +1987,14 @@
       return parsed;
     }
 
-    async function pushItemToGoogleSheet(item) {
+    async function pushItemToGoogleSheet(item, action = 'add') {
       if (!SHEET_WEBHOOK_URL) return;
       try {
         await fetch(SHEET_WEBHOOK_URL, {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(item)
+          body: JSON.stringify({ ...item, action })
         });
       } catch (e) {
         // Non-blocking fallback
@@ -2678,7 +2681,8 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
             : prev.priceHistory6m;
           state.items[idx] = { ...prev, ...payload, priceHistory6m: updatedHist };
         }
-        showToast(`Updated "${payload.name}"`);
+        pushItemToGoogleSheet(payload, 'update');
+        showToast(`Updated "${payload.name}" & synced to Google Sheet`);
       } else {
         payload.priceHistory6m = buildDefaultHistory6m(msrp, bestPrice, low6m, high6m);
         payload.history6m = (!Number.isNaN(low6m) && !Number.isNaN(high6m))
