@@ -150,9 +150,17 @@
           <button id="btn-batch-close" type="button" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Dismiss</button>
         </div>
       </div>
-      <div id="batch-key-box" class="hidden flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-        <input id="batch-api-key" type="password" placeholder="Paste Gemini API Key (AIza...) for live web price checks" class="flex-1 min-w-[220px] rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none" />
-        <button id="btn-batch-start-with-key" type="button" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Save &amp; Start Update</button>
+      <div id="batch-key-box" class="hidden space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+        <div class="flex items-center justify-between gap-2">
+          <label for="batch-api-key" class="text-[11px] font-semibold text-slate-700">
+            Configure Gemini API Key (saved locally in this browser) ·
+            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">Get free key</a>
+          </label>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="batch-api-key" type="password" placeholder="AIza..." class="flex-1 min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none" />
+          <button id="btn-batch-start-with-key" type="button" class="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700">Start Price Update</button>
+        </div>
       </div>
       <div class="h-2.5 w-full overflow-hidden rounded-full bg-emerald-100">
         <div id="batch-progress-bar" class="h-full w-0 rounded-full bg-emerald-600 transition-all duration-300"></div>
@@ -3024,6 +3032,30 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       return Number.isFinite(n) ? n : 0;
     }
 
+    function openBatchPriceConfig() {
+      if (batchUpdating) return;
+      const banner = document.getElementById('batch-update-banner');
+      const countEl = document.getElementById('batch-progress-count');
+      const titleEl = document.getElementById('batch-update-title');
+      const subEl = document.getElementById('batch-update-subtitle');
+      const barEl = document.getElementById('batch-progress-bar');
+      const lastEl = document.getElementById('batch-last-updated');
+      const keyBox = document.getElementById('batch-key-box');
+      const keyInput = document.getElementById('batch-api-key');
+
+      banner.classList.remove('hidden');
+      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      lastEl.classList.add('hidden');
+      lastEl.textContent = '';
+      keyBox.classList.remove('hidden');
+      keyInput.value = loadGeminiKey() || '';
+      countEl.textContent = 'Configure Key';
+      titleEl.textContent = 'Out-of-Band Live Price & Prediction Update';
+      subEl.textContent = 'Enter or confirm your Gemini API Key below, then click Start Price Update.';
+      barEl.style.width = '0%';
+      setTimeout(() => keyInput.focus(), 40);
+    }
+
     async function runBatchPriceUpdate() {
       if (batchUpdating) return;
       const banner = document.getElementById('batch-update-banner');
@@ -3043,13 +3075,16 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       lastEl.classList.add('hidden');
       lastEl.textContent = '';
 
+      const typedKey = document.getElementById('batch-api-key').value.trim();
+      if (typedKey) saveGeminiKey(typedKey);
       const apiKey = loadGeminiKey();
       if (!apiKey) {
         keyBox.classList.remove('hidden');
         countEl.textContent = 'API Key Needed';
         titleEl.textContent = 'Gemini API Key Required for Live Updates';
-        subEl.textContent = 'Paste your AIza... key below to check live US retail prices and predictions for all items.';
+        subEl.textContent = 'Paste your AIza... key below and click Start Price Update.';
         barEl.style.width = '0%';
+        document.getElementById('batch-api-key').focus();
         return;
       }
       keyBox.classList.add('hidden');
@@ -3193,7 +3228,7 @@ Apply Standard Deal Query Criteria:
       showToast(`Updated ${updatedCount} active items & synced to Google Sheet`);
     }
 
-    document.getElementById('btn-update-all-prices').addEventListener('click', runBatchPriceUpdate);
+    document.getElementById('btn-update-all-prices').addEventListener('click', openBatchPriceConfig);
     document.getElementById('btn-batch-stop').addEventListener('click', () => {
       batchCancelRequested = true;
     });
