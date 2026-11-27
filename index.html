@@ -888,12 +888,12 @@
         config: '25-Piece Battery-Operated Starter Set (Ages 18m+)',
         category: 'Kids & Toys',
         msrp: 89.99,
-        bestPrice: 76.49,
+        bestPrice: 62.99,
         targetPrice: 75.00,
-        retailer: 'Ravensburger North America (Official)',
+        retailer: 'Mother and Earth Kids',
         promoCode: '',
-        couponDetails: 'None needed (15% instant holiday sale; free delivery)',
-        otherPrices: "Lala's Wee Loft $87.99 | Flying Pig Toys $89.99 | Maziply Toys $89.99 | Snickelfritz Toys $89.99 | eBay $95.50 ($80 + $15.50 ship) | Amazon (ASIN B000B75PV6)",
+        couponDetails: '30% off Sale ($27.00 off MSRP)',
+        otherPrices: "Ravensburger Official $76.49 | Lala's Wee Loft $87.99 | Flying Pig Toys $89.99 | Maziply Toys $89.99 | Snickelfritz Toys $89.99 | eBay $95.50 | Amazon (ASIN B000B75PV6)",
         history6m: '$76.49 - $89.99 (Full retail to 15% seasonal promotional discount)',
         priceHistory6m: [
           { label: 'Jun 2026', price: 89.99 },
@@ -907,8 +907,9 @@
         whenToBuy: 'Buy Now — All-Time / BF Low',
         status: 'Deal Active',
         lastChecked: '2026-11-26 19:41',
-        url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed',
+        url: 'https://motherandearth.com/products/brio-world-my-first-railway-battery-operated',
         offers: [
+          { retailer: 'Mother and Earth Kids', listed: 89.99, promo: '30% off Sale', net: 62.99, fulfillment: 'In Stock (Ships US)', perks: 'Lowest price under $70', rating: 'Best Deal ($62.99)', url: 'https://motherandearth.com/products/brio-world-my-first-railway-battery-operated' },
           { retailer: 'Ravensburger North America (Official)', listed: 89.99, promo: '15% instant holiday sale', net: 76.49, fulfillment: 'In Stock (Free delivery)', perks: 'Official direct storefront', rating: 'Best Deal ($76.49)', url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed' },
           { retailer: "Lala's Wee Loft", listed: 87.99, promo: 'Below MSRP ($2 off)', net: 87.99, fulfillment: 'Backordered (Ships in 2-4 days / SoCal pickup)', perks: 'Corona Del Mar & Dana Point local pickup', rating: 'Specialty Toy ($87.99)', url: 'https://lalasweeloft.com/products/brio-my-first-railway-battery-train-set-33710' },
           { retailer: 'Flying Pig Toys', listed: 89.99, promo: 'None (MSRP)', net: 89.99, fulfillment: 'In Stock (Free ship >$125)', perks: 'Authorized US BRIO retailer', rating: 'In Stock ($89.99)', url: 'https://flyingpigtoys.com/products/brio-world-train-set-my-first-railway-battery-train-set' },
@@ -1325,7 +1326,7 @@
       { match: 'macbook', url: 'https://www.bhphotovideo.com/c/product/2010246-REG/apple_mhwu4ll_a_14_inch_macbook_pro_apple.html' },
       { match: 'bombas', url: 'https://bombas.com/products/men-s-solid-ankle-four-pack' },
       { match: 'atlas', url: 'https://crandalloffice.com/products/atlas-headrest-for-herman-miller-embody-chair?variant=51642608419182&country=US&currency=USD&utm_medium=product_sync&utm_source=google&utm_content=sag_organic&utm_campaign=sag_organic' },
-      { match: 'brio', url: 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed' },
+      { match: 'brio', url: 'https://motherandearth.com/products/brio-world-my-first-railway-battery-operated' },
       { match: 'airpods pro', url: 'https://www.walmart.com/ip/AirPods-nbsp-Pro-nbsp-3/17835006350?wmlspartner=wlpa&selectedSellerId=0&veh=seo_fpl&cn=google' },
       { match: 'airpods 5', url: 'https://www.bestbuy.com/product/apple-airpods-5-true-wireless-active-noise-cancelling-earbuds-white/JJGCQP68Y2/sku/6376553?utm_source=feed' },
       { match: 'simplehuman', url: 'https://www.simplehuman.com/products/lavender-liquid-hand-soap-refill-bottle?variant=46651850424451' },
@@ -1397,6 +1398,8 @@
       if (r.includes('herman miller')) return 'https://store.hermanmiller.com/gaming-chairs/embody-gaming-chair/100160889.html?lang=en_US';
       if (r.includes('lala')) return 'https://lalasweeloft.com/products/brio-my-first-railway-battery-train-set-33710';
       if (r.includes('flying pig')) return 'https://flyingpigtoys.com/products/brio-world-train-set-my-first-railway-battery-train-set';
+      if (r.includes('mother')) return 'https://motherandearth.com/products/brio-world-my-first-railway-battery-operated';
+      if (r.includes('ravensburger')) return 'https://www.ravensburger.us/en-US/pdp/63371000?utm_campaign=BRIO&utm_medium=cpc&utm_source=google&utm_content=productfeed';
       if (r.includes('maziply')) return 'https://www.maziply.com/products/brio-my-first-railway-battery-train-set-33710-7312350337105';
       if (r.includes('expercom')) return `https://expercom.com/search?q=${q}`;
       if (r.includes('micro center')) return `https://www.microcenter.com/search/search_results.aspx?Ntt=${q}`;
