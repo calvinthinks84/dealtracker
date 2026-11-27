@@ -43,7 +43,7 @@
   </div>
 
   <!-- Top Navigation & Header -->
-  <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+  <header class="border-b border-slate-200/80 bg-white">
     <div class="mx-auto max-w-7xl px-4 py-3.5 sm:px-6 lg:px-8">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-start gap-3">
@@ -1995,7 +1995,7 @@
           document.getElementById('form-cashback-pct').value = item.cashbackPct || '';
           document.getElementById('form-cashback-source').value = item.cashbackSource || '';
           document.getElementById('form-other-prices').value = item.otherPrices || '';
-          document.getElementById('form-url').value = item.url || '';
+          document.getElementById('form-url').value = item.url || getDealUrl(item);
           document.getElementById('form-image-url').value = item.imageUrl || '';
           document.getElementById('form-when-to-buy').value = item.whenToBuy || 'Buy Now — Promo Code Active';
           document.getElementById('form-projection').value = item.projection || '';
@@ -2386,10 +2386,41 @@
       const btn = document.getElementById('btn-sync-now');
       if (btn) btn.classList.add('opacity-60');
       try {
-        const resp = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const csvText = await resp.text();
-        const sheetItems = parseSheetCSV(csvText);
+        let sheetItems = [];
+        try {
+          const apiResp = await fetch(SHEET_WEBHOOK_URL, { cache: 'no-store' });
+          if (apiResp.ok) {
+            const apiJson = await apiResp.json();
+            if (apiJson && Array.isArray(apiJson.items) && apiJson.items.length > 0) {
+              sheetItems = apiJson.items.map(r => ({
+                name: r.name || '',
+                config: r.config || '',
+                msrp: Number(r.msrp) || 0,
+                bestPrice: Number(r.bestPrice) || 0,
+                retailer: r.retailer || '',
+                couponDetails: r.couponDetails || '',
+                otherPrices: r.otherPrices || '',
+                history6m: r.history6m || '',
+                projection: r.projection || '',
+                status: r.status || 'Deal Active',
+                lastChecked: r.lastChecked || '',
+                url: r.url || '',
+                targetPrice: (r.targetPrice !== '' && r.targetPrice !== null && r.targetPrice !== undefined) ? Number(r.targetPrice) : null,
+                imageUrl: r.imageUrl || '',
+                category: (r.category === 'Tech & Apple' ? 'Tech' : r.category) || 'Other',
+                comments: r.comments || ''
+              })).filter(i => i.name);
+            }
+          }
+        } catch (e) {
+          // Fall back to published CSV if Apps Script doGet is not updated yet
+        }
+        if (sheetItems.length === 0) {
+          const resp = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const csvText = await resp.text();
+          sheetItems = parseSheetCSV(csvText);
+        }
         if (sheetItems.length === 0) throw new Error('No items parsed');
 
         const existingMap = new Map(state.items.map(i => [i.name.trim().toLowerCase(), i]));
