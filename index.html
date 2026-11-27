@@ -582,6 +582,10 @@
               <input id="form-projection" type="text" placeholder="e.g. Expected $299 in Spring 2027; buy now if needed before holidays" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
             </div>
             <div class="sm:col-span-3">
+              <label for="form-notify-email" class="block text-xs font-semibold text-slate-700">Target-Hit Alert Email (optional — defaults to your Google account)</label>
+              <input id="form-notify-email" type="email" placeholder="e.g. friend@example.com (receives email when Target Price is hit)" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div class="sm:col-span-3">
               <label for="form-comments" class="block text-xs font-semibold text-slate-700">Comments / Notes</label>
               <textarea id="form-comments" rows="2" placeholder="Personal notes, gift ideas, sizing, or reminders..." class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
             </div>
@@ -617,6 +621,44 @@
           <button id="confirm-import-btn" type="button" class="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">Merge Imported Items</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Send Deal Email Modal -->
+  <div id="email-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div class="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div class="flex items-center gap-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
+            <i data-lucide="mail" class="h-4 w-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Email Deal to Someone</h3>
+            <p id="email-item-name" class="text-[11px] text-slate-500 truncate max-w-[260px]"></p>
+          </div>
+        </div>
+        <button id="close-email-modal" type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <form id="email-form" class="p-5 space-y-4">
+        <input type="hidden" id="email-item-id" />
+        <div>
+          <label for="email-recipient" class="block text-xs font-semibold text-slate-700">Recipient Email *</label>
+          <input id="email-recipient" type="email" required placeholder="e.g. alex@example.com" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+        </div>
+        <div>
+          <label for="email-note" class="block text-xs font-semibold text-slate-700">Personal Note (optional)</label>
+          <textarea id="email-note" rows="2" placeholder="Thought you might want to grab this while it's on sale..." class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button id="cancel-email-modal" type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">
+            <i data-lucide="send" class="h-3.5 w-3.5"></i>
+            <span>Send Deal Email</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1587,6 +1629,14 @@
                     </button>
                     <button
                       type="button"
+                      title="Email Deal"
+                      data-email-id="${item.id}"
+                      class="email-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
+                    >
+                      <i data-lucide="mail" class="h-4 w-4"></i>
+                    </button>
+                    <button
+                      type="button"
                       title="Edit Item"
                       data-edit-id="${item.id}"
                       class="edit-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
@@ -2031,6 +2081,7 @@
           document.getElementById('form-image-url').value = item.imageUrl || '';
           document.getElementById('form-when-to-buy').value = item.whenToBuy || 'Buy Now — Promo Code Active';
           document.getElementById('form-projection').value = item.projection || '';
+          document.getElementById('form-notify-email').value = item.notifyEmail || '';
           document.getElementById('form-comments').value = item.comments || '';
           const hist = getItemHistory6m(item);
           const prices = hist.map(p => Number(p.price) || 0);
@@ -2154,6 +2205,9 @@
       });
       document.querySelectorAll('.detail-btn').forEach(btn => {
         btn.addEventListener('click', () => openDetailModal(btn.dataset.detailId));
+      });
+      document.querySelectorAll('.email-btn').forEach(btn => {
+        btn.addEventListener('click', () => openEmailModal(btn.dataset.emailId));
       });
       document.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', () => openFormModal(btn.dataset.editId));
@@ -2353,6 +2407,7 @@
       const cCat = col('category');
       const cNotes = col('comments');
       const cModel = col('model');
+      const cNotify = col('notify email');
 
       const cleanNum = v => parseFloat(String(v || '0').replace(/[^0-9.]/g, '')) || 0;
       const inferCategory = name => {
@@ -2396,7 +2451,8 @@
           targetPrice: cTarget !== -1 && r[cTarget] ? cleanNum(r[cTarget]) : null,
           imageUrl: cImg !== -1 && r[cImg] && r[cImg].startsWith('http') ? r[cImg].trim() : '',
           comments: cNotes !== -1 && r[cNotes] ? r[cNotes].trim() : '',
-          modelNumber: cModel !== -1 && r[cModel] ? r[cModel].trim() : ''
+          modelNumber: cModel !== -1 && r[cModel] ? r[cModel].trim() : '',
+          notifyEmail: cNotify !== -1 && r[cNotify] ? r[cNotify].trim() : ''
         });
       }
       return parsed;
@@ -2443,7 +2499,8 @@
                 imageUrl: r.imageUrl || '',
                 category: (r.category === 'Tech & Apple' ? 'Tech' : r.category) || 'Other',
                 comments: r.comments || '',
-                modelNumber: r.modelNumber || ''
+                modelNumber: r.modelNumber || '',
+                notifyEmail: r.notifyEmail || ''
               })).filter(i => i.name);
             }
           }
@@ -2483,6 +2540,7 @@
               imageUrl: si.imageUrl || prev.imageUrl,
               comments: si.comments !== undefined && si.comments !== '' ? si.comments : (prev.comments || ''),
               modelNumber: si.modelNumber || prev.modelNumber || '',
+              notifyEmail: si.notifyEmail || prev.notifyEmail || '',
               priceHistory6m: updatedHist
             };
           }
@@ -3014,6 +3072,42 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       syncFromGoogleSheet(true);
     });
 
+    function openEmailModal(id) {
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+      document.getElementById('email-item-id').value = item.id;
+      document.getElementById('email-item-name').textContent = `${item.name} · ${fmtCurrency(item.bestPrice)} at ${item.retailer}`;
+      document.getElementById('email-recipient').value = item.notifyEmail || '';
+      document.getElementById('email-note').value = '';
+      const m = document.getElementById('email-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    document.getElementById('close-email-modal').addEventListener('click', () => closeModal('email-modal'));
+    document.getElementById('cancel-email-modal').addEventListener('click', () => closeModal('email-modal'));
+    document.getElementById('email-modal').addEventListener('click', e => {
+      if (e.target.id === 'email-modal') closeModal('email-modal');
+    });
+    document.getElementById('email-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const id = document.getElementById('email-item-id').value;
+      const to = document.getElementById('email-recipient').value.trim();
+      const note = document.getElementById('email-note').value.trim();
+      const item = state.items.find(i => i.id === id);
+      if (!item || !to) return;
+      pushItemToGoogleSheet({
+        ...item,
+        modelNumber: getItemModel(item),
+        url: getDealUrl(item),
+        to,
+        note
+      }, 'send_email');
+      closeModal('email-modal');
+      showToast(`Deal email sent to ${to}`);
+    });
+
     document.getElementById('close-detail-modal').addEventListener('click', () => closeModal('detail-modal'));
     document.getElementById('detail-modal').addEventListener('click', e => {
       if (e.target.id === 'detail-modal') closeModal('detail-modal');
@@ -3168,6 +3262,7 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
         imageUrl: document.getElementById('form-image-url').value.trim(),
         whenToBuy: document.getElementById('form-when-to-buy').value,
         projection: document.getElementById('form-projection').value.trim(),
+        notifyEmail: document.getElementById('form-notify-email').value.trim(),
         comments: document.getElementById('form-comments').value.trim(),
         low6m: Number.isNaN(low6m) ? null : low6m,
         high6m: Number.isNaN(high6m) ? null : high6m,
