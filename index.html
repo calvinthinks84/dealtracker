@@ -1549,6 +1549,14 @@
                     </button>
                     <button
                       type="button"
+                      title="Sync Live Price Now"
+                      data-sync-id="${item.id}"
+                      class="sync-item-btn rounded-lg p-1.5 transition ${state.recalculatingId === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}"
+                    >
+                      <i data-lucide="refresh-cw" class="h-4 w-4 ${state.recalculatingId === item.id ? 'animate-spin' : ''}"></i>
+                    </button>
+                    <button
+                      type="button"
                       title="Flag &amp; AI Update"
                       data-report-id="${item.id}"
                       class="report-btn rounded-lg p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-600"
@@ -1639,6 +1647,7 @@
                         <div class="inline-flex items-center gap-1">
                           <button type="button" data-detail-id="${item.id}" class="detail-btn rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-200">Graph</button>
                           <a href="${escapeHtml(getDealUrl(item))}" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">Open Deal</a>
+                          <button type="button" title="Sync Live Price Now" data-sync-id="${item.id}" class="sync-item-btn rounded p-1 ${state.recalculatingId === item.id ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}"><i data-lucide="refresh-cw" class="h-3.5 w-3.5 ${state.recalculatingId === item.id ? 'animate-spin' : ''}"></i></button>
                           <button type="button" title="Flag &amp; AI Update" data-report-id="${item.id}" class="report-btn rounded p-1 text-slate-400 hover:bg-amber-50 hover:text-amber-600"><i data-lucide="flag" class="h-3.5 w-3.5"></i></button>
                           <button type="button" data-edit-id="${item.id}" class="edit-btn rounded p-1 text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="h-3.5 w-3.5"></i></button>
                         </div>
@@ -3338,7 +3347,99 @@ Apply Standard Deal Query Criteria:
     document.getElementById('report-modal').addEventListener('click', e => {
       if (e.target.id === 'report-modal') closeModal('report-modal');
     });
+    async function syncSingleItemOutOfBand(id) {
+      if (state.recalculatingId) return;
+      const item = state.items.find(i => i.id === id);
+      if (!item) return;
+      const apiKey = loadGeminiKey();
+      if (!apiKey) {
+        openReportModal(id);
+        const st = document.getElementById('report-status');
+        st.textContent = 'Enter your Gemini API key above, then click Update with AI (or click Sync on the card after saving your key).';
+        st.className = 'rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-medium text-amber-900';
+        st.classList.remove('hidden');
+        return;
+      }
+
+      const model = getItemModel(item);
+      state.recalculatingId = id;
+      renderAll();
+      showToast(`Syncing live price & prediction for ${item.name}...`);
+
+      const prompt = `Re-verify and update the LIVE current US retail deal price and price prediction as of today for this exact product:
+Name: ${item.name}
+${model ? 'Model / Part #: ' + model : ''}
+Config: ${item.config || 'Standard'}
+Previous Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
+
+Apply Standard Deal Query Criteria:
+1. Validate exact MSRP and lowest current live US retail deal price (never guess).
+2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
+3. Factor in active promo codes, coupons, Rakuten cash back, or Target RedCard 5%.
+4. Provide an updated buy-timing prediction (whenToBuy) and concise projection note.
+5. Return ONLY valid JSON with these keys:
+{
+  "msrp": number,
+  "bestPrice": number,
+  "retailer": string,
+  "promoCode": string,
+  "couponDetails": string,
+  "cashbackPct": number,
+  "cashbackSource": string,
+  "otherPrices": "Retailer A $X | Retailer B $Y",
+  "url": "direct retailer product detail page URL",
+  "low6m": number,
+  "high6m": number,
+  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
+  "projection": string
+}`;
+
+      try {
+        const parsed = await callGeminiWithSearch(apiKey, prompt);
+        const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
+        const bestPrice = parsePriceNum(parsed.bestPrice) || parsePriceNum(item.bestPrice) || msrp;
+        const low6m = parsePriceNum(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
+        const high6m = parsePriceNum(parsed.high6m) || Math.max(msrp, item.high6m || msrp);
+        const updated = {
+          ...item,
+          msrp,
+          bestPrice,
+          retailer: parsed.retailer || item.retailer,
+          promoCode: parsed.promoCode !== undefined ? parsed.promoCode : item.promoCode,
+          couponDetails: parsed.couponDetails !== undefined ? parsed.couponDetails : item.couponDetails,
+          cashbackPct: parsed.cashbackPct !== undefined ? Number(parsed.cashbackPct) : item.cashbackPct,
+          cashbackSource: parsed.cashbackSource !== undefined ? parsed.cashbackSource : item.cashbackSource,
+          otherPrices: parsed.otherPrices || item.otherPrices,
+          url: (parsed.url && String(parsed.url).startsWith('http')) ? parsed.url : item.url,
+          low6m,
+          high6m,
+          history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-mo range)`,
+          priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
+          whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
+          projection: parsed.projection || item.projection,
+          status: item.status === 'Purchased' ? 'Purchased' : (bestPrice < msrp ? 'Deal Active' : 'Monitoring'),
+          lastChecked: formatIsoDateTime(),
+          offers: []
+        };
+        state.items = state.items.map(i => i.id === id ? updated : i);
+        saveState(true);
+        pushItemToGoogleSheet(updated, 'update');
+        showToast(`Synced ${updated.name}: ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`);
+      } catch (err) {
+        showToast(`Sync failed for ${item.name}: ${err.message || 'Check API key'}`);
+      } finally {
+        state.recalculatingId = null;
+        renderAll();
+      }
+    }
+
     document.addEventListener('click', e => {
+      const sBtn = e.target.closest('.sync-item-btn');
+      if (sBtn && sBtn.dataset.syncId) {
+        e.preventDefault();
+        syncSingleItemOutOfBand(sBtn.dataset.syncId);
+        return;
+      }
       const rBtn = e.target.closest('.report-btn');
       if (rBtn && rBtn.dataset.reportId) {
         e.preventDefault();
