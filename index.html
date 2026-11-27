@@ -1334,7 +1334,12 @@
       { match: 'samsung t7', url: 'https://www.bhphotovideo.com/c/product/1559836-REG/samsung_mu_pc1t0t_am_1tb_t7_portable_ssd.html?ap=y&smp=Y' },
       { match: 'apple tv', url: 'https://www.bestbuy.com/product/apple-tv-4k-2022-family-64gb-streaming-device-3rd-generation-wi-fi-black/JJ8ZH9F8LH' },
       { match: 'wandvac', url: 'https://www.sharkninja.com/shark-wandvac-cordless-handheld-vacuum/WV201.html' },
-      { match: 'embody', url: 'https://store.hermanmiller.com/gaming-chairs/embody-gaming-chair/100160889.html?lang=en_US' }
+      { match: 'embody', url: 'https://store.hermanmiller.com/gaming-chairs/embody-gaming-chair/100160889.html?lang=en_US' },
+      { match: 'imac', url: 'https://www.bhphotovideo.com/c/product/2010225-REG/apple_mh064ll_a_24_imac_with_retina.html' },
+      { match: 'mac mini', url: 'https://www.costco.com/p/-/mac-mini-desktop-computer-apple-m6-chip-built-for-apple-intelligence/4000444297' },
+      { match: 'b6e', url: 'https://www.bestbuy.com/product/lg-55-class-b6e-oled-ai-4k-smart-webos-tv-with-perfect-black-and-vivid-color-2026/JJ8VPZZ7PZ/sku/6680628' },
+      { match: 'bravia 6', url: 'https://electronics.sony.com/tv-video/televisions/all-tvs/p/k55a60' },
+      { match: '27us500', url: 'https://www.lg.com/us/monitors/lg-27us500-w-4k-uhd-monitor' }
     ];
 
     const PRODUCT_MODEL_MAP = [
@@ -1349,7 +1354,12 @@
       { match: 'atlas', model: 'EMBG1G13SY12' },
       { match: 'brio', model: '#33710' },
       { match: 'wandvac', model: 'WV201' },
-      { match: 'embody', model: '2517590' }
+      { match: 'embody', model: '2517590' },
+      { match: 'imac', model: 'MH064LL/A' },
+      { match: 'mac mini', model: 'MHQK4LL/A' },
+      { match: 'b6e', model: 'OLED55B6EUA' },
+      { match: 'bravia 6', model: 'K-55A60' },
+      { match: '27us500', model: '27US500-W' }
     ];
 
     function getItemModel(item) {
@@ -1385,6 +1395,10 @@
       if (r.includes('lala')) return 'https://lalasweeloft.com/products/brio-my-first-railway-battery-train-set-33710';
       if (r.includes('flying pig')) return 'https://flyingpigtoys.com/products/brio-world-train-set-my-first-railway-battery-train-set';
       if (r.includes('maziply')) return 'https://www.maziply.com/products/brio-my-first-railway-battery-train-set-33710-7312350337105';
+      if (r.includes('expercom')) return `https://expercom.com/search?q=${q}`;
+      if (r.includes('micro center')) return `https://www.microcenter.com/search/search_results.aspx?Ntt=${q}`;
+      if (r.includes('sony')) return `https://electronics.sony.com/search/${q}`;
+      if (r.includes('lg')) return `https://www.lg.com/us/search?search=${q}`;
       return `https://www.google.com/search?tbm=shop&q=${q}`;
     }
 
