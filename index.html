@@ -564,6 +564,7 @@
     const STORAGE_KEY = 'wishlist_deal_tracker_v2';
     const SYNC_KEY = 'wishlist_deal_tracker_sync_v2';
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTM5-n2kRQJMAGyjCJwArgrEOmSwf1G6yNhejZ86kXB5PyGGLaNz92ACW0uqf83NVN2F63e-JUmmARb/pub?gid=0&single=true&output=csv';
+    const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbw_yzLQVh1VKSQip9gL4dbTNxBksP_RREwhI9R5sJiXp50SonEG1PZRAqCrZnwvADTPoA/exec';
 
     const SEARCH_SITES = [
       { name: 'Amazon', url: q => `https://www.amazon.com/s?k=${encodeURIComponent(q)}` },
@@ -1983,6 +1984,20 @@
       return parsed;
     }
 
+    async function pushItemToGoogleSheet(item) {
+      if (!SHEET_WEBHOOK_URL) return;
+      try {
+        await fetch(SHEET_WEBHOOK_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(item)
+        });
+      } catch (e) {
+        // Non-blocking fallback
+      }
+    }
+
     async function syncFromGoogleSheet(isManual = false) {
       const btn = document.getElementById('btn-sync-now');
       if (btn) btn.classList.add('opacity-60');
@@ -2443,12 +2458,13 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       state.selectedAnalyticsId = newItem.id;
       saveState(true);
       renderAll();
+      pushItemToGoogleSheet(newItem);
 
       btn.disabled = false;
       btn.classList.remove('opacity-60');
       document.getElementById('ai-chat-input').value = '';
       closeModal('ai-modal');
-      showToast(`Added "${newItem.name}" to Deals Tracker`);
+      showToast(`Added "${newItem.name}" & synced to Google Sheet`);
     }
 
     // Voice recognition for talking directly to AI Smart Add
@@ -2670,7 +2686,8 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
           : `${fmtCurrency(bestPrice)} - ${fmtCurrency(msrp)} (6-month baseline)`;
         state.items.unshift(payload);
         state.selectedAnalyticsId = payload.id;
-        showToast(`Added "${payload.name}"`);
+        pushItemToGoogleSheet(payload);
+        showToast(`Added "${payload.name}" & synced to Google Sheet`);
       }
       saveState(true);
       closeModal('form-modal');
