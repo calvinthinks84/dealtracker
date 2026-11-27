@@ -491,6 +491,14 @@
               <label for="form-coupon-notes" class="block text-xs font-semibold text-slate-700">Discount / Cashback Details</label>
               <input id="form-coupon-notes" type="text" placeholder="e.g. 20% off + 5% Prime Visa" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
             </div>
+            <div>
+              <label for="form-cashback-pct" class="block text-xs font-semibold text-slate-700">Rakuten / Cashback (%)</label>
+              <input id="form-cashback-pct" type="number" step="0.1" min="0" max="100" placeholder="e.g. 6" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
+            <div>
+              <label for="form-cashback-source" class="block text-xs font-semibold text-slate-700">Cashback Source</label>
+              <input id="form-cashback-source" type="text" placeholder="e.g. Rakuten, Target RedCard" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
+            </div>
             <div class="sm:col-span-3">
               <label for="form-other-prices" class="block text-xs font-semibold text-slate-700">Other Retailer Prices</label>
               <input id="form-other-prices" type="text" placeholder="e.g. Best Buy $349.99 | Target $349.99 | Costco $339.99" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
@@ -631,6 +639,7 @@
       { name: 'B&H Photo', url: q => `https://www.bhphotovideo.com/c/search?q=${encodeURIComponent(q)}` },
       { name: 'Apple Store', url: q => `https://www.apple.com/us/search/${encodeURIComponent(q)}` },
       { name: 'Slickdeals', url: q => `https://slickdeals.net/newsearch.php?q=${encodeURIComponent(q)}` },
+      { name: 'Rakuten Cashback', url: q => `https://www.rakuten.com/search?term=${encodeURIComponent(q)}` },
       { name: 'Coupons (RetailMeNot)', url: q => `https://www.retailmenot.com/s/${encodeURIComponent(q)}` }
     ];
 
@@ -686,6 +695,8 @@
         targetPrice: 40.00,
         retailer: 'Bombas.com',
         promoCode: 'BIGHOLIDAY25',
+        cashbackPct: 6,
+        cashbackSource: 'Rakuten',
         couponDetails: 'BIGHOLIDAY25 (25% off sitewide Nov 21 - Dec 2) + 6% Rakuten',
         otherPrices: "Men's Ankle $39.15 (was $58) | Men's Calf $40.50 (was $60) | Merino $60.75 (was $90)",
         history6m: 'Standard 8-15% multipack pricing; 20-25% off during July & Nov sales',
@@ -982,6 +993,25 @@
       return { dollar, pct };
     }
 
+    function getCashbackInfo(item) {
+      let pct = Number(item.cashbackPct);
+      let source = item.cashbackSource || '';
+      if (!pct || Number.isNaN(pct)) {
+        const txt = String(item.couponDetails || '');
+        const m = txt.match(/(\d+(?:\.\d+)?)%\s*(rakuten|cash\s*back|cashback|prime\s*visa|circle\s*card|redcard)/i);
+        if (m) {
+          pct = parseFloat(m[1]);
+          source = source || m[2];
+        } else {
+          pct = 0;
+        }
+      }
+      const best = Number(item.bestPrice) || 0;
+      const cashbackDollar = pct > 0 ? best * (pct / 100) : 0;
+      const netPrice = Math.max(0, best - cashbackDollar);
+      return { pct, source: source || 'Cashback', cashbackDollar, netPrice };
+    }
+
     function calcTrend(item) {
       const hist = getItemHistory6m(item);
       if (!hist || hist.length < 2) return { dir: 'flat', pct: 0, diff: 0, label: '0.0% Flat' };
@@ -1089,6 +1119,7 @@
       const totalMsrp = activePool.reduce((acc, i) => acc + (Number(i.msrp) || 0), 0);
       const totalBest = activePool.reduce((acc, i) => acc + (Number(i.bestPrice) || 0), 0);
       const totalSaved = Math.max(0, totalMsrp - totalBest);
+      const totalCashback = activePool.reduce((acc, i) => acc + getCashbackInfo(i).cashbackDollar, 0);
       const avgPct = totalMsrp > 0 ? (totalSaved / totalMsrp) * 100 : 0;
       const maxPct = activePool.reduce((m, i) => Math.max(m, calcSavings(i).pct), 0);
       const activeDealsCount = state.items.filter(i => i.status === 'Deal Active').length;
@@ -1097,7 +1128,7 @@
       const kpis = [
         { label: 'Total Wishlist Value', value: fmtCurrency(totalMsrp), sub: `${activePool.length} active items`, icon: 'shopping-bag', tone: 'text-slate-900', bg: 'bg-slate-100 text-slate-600' },
         { label: 'Current Best Value', value: fmtCurrency(totalBest), sub: `${avgPct.toFixed(1)}% below MSRP`, icon: 'sparkles', tone: 'text-indigo-700', bg: 'bg-indigo-50 text-indigo-600' },
-        { label: 'Total Savings ($)', value: fmtCurrency(totalSaved), sub: 'Across tracked deals', icon: 'piggy-bank', tone: 'text-emerald-700', bg: 'bg-emerald-50 text-emerald-600' },
+        { label: 'Total Savings ($)', value: fmtCurrency(totalSaved + totalCashback), sub: totalCashback > 0 ? `Includes ${fmtCurrency(totalCashback)} cashback` : 'Across tracked deals', icon: 'piggy-bank', tone: 'text-emerald-700', bg: 'bg-emerald-50 text-emerald-600' },
         { label: 'Max Savings Rate', value: `${maxPct.toFixed(1)}%`, sub: 'Highest item discount', icon: 'percent', tone: 'text-amber-700', bg: 'bg-amber-50 text-amber-600' },
         { label: 'Active Deals', value: `${activeDealsCount}`, sub: `${targetHitsCount} target price hit${targetHitsCount === 1 ? '' : 's'}`, icon: 'flame', tone: 'text-rose-700', bg: 'bg-rose-50 text-rose-600' }
       ];
@@ -1342,6 +1373,12 @@
                         <span class="text-2xl font-extrabold tabular-nums text-slate-900">${fmtCurrency(item.status === 'Purchased' && item.purchasedPrice != null ? item.purchasedPrice : item.bestPrice)}</span>
                         ${dollar > 0 ? `<span class="text-xs tabular-nums text-slate-400 line-through">${fmtCurrency(item.msrp)}</span>` : ''}
                       </div>
+                      ${(() => {
+                        const cb = getCashbackInfo(item);
+                        return cb.pct > 0
+                          ? `<div class="mt-1 inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">Net w/ ${cb.pct}% ${escapeHtml(cb.source)}: ${fmtCurrency(cb.netPrice)}</div>`
+                          : '';
+                      })()}
                     </div>
                     <div class="text-right">
                       ${dollar > 0 ? `
@@ -1883,6 +1920,8 @@
           document.getElementById('form-retailer').value = item.retailer || '';
           document.getElementById('form-promo-code').value = item.promoCode || '';
           document.getElementById('form-coupon-notes').value = item.couponDetails || '';
+          document.getElementById('form-cashback-pct').value = item.cashbackPct || '';
+          document.getElementById('form-cashback-source').value = item.cashbackSource || '';
           document.getElementById('form-other-prices').value = item.otherPrices || '';
           document.getElementById('form-url').value = item.url || '';
           document.getElementById('form-image-url').value = item.imageUrl || '';
@@ -2654,7 +2693,7 @@ Return ONLY valid JSON with these keys:
 
       const prompt = `The user wants to add a product to their Wishlist Deals Tracker: "${raw}".
 Follow this strict multi-retailer deal-hunting standard:
-1. Search across ALL major US retailers (Amazon, Costco, Target, Walmart, Best Buy, B&H Photo, Apple Store, and the official brand site), Slickdeals.net, and active coupon/promo code sources.
+1. Search across ALL major US retailers (Amazon, Costco, Target, Walmart, Best Buy, B&H Photo, Apple Store, and the official brand site), Slickdeals.net, Rakuten cashback rates, and active coupon/promo code sources.
 2. ALWAYS validate MSRP and Best Current Price against live current web search deal prices (never use outdated 2024/2025 training-data estimates), and apply active promo codes, in-cart coupons, or instant discounts to find the TRUE LOWEST current net price.
 3. List at least 2-3 competing retailer prices in "otherPrices" (e.g. "Amazon $X | Best Buy $Y | Target $Z").
 4. Include any active promo code, coupon, or card/cashback perk in "promoCode" and "couponDetails".
@@ -2671,7 +2710,9 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
   "targetPrice": number (user requested alert price if mentioned, else ~15% below msrp),
   "retailer": "best current retailer (e.g. Amazon, Best Buy, Costco, Target, Walmart, Williams Sonoma, Brand Direct)",
   "promoCode": "active promo code if any, else empty string",
-  "couponDetails": "short note on active discount, instant savings, or card perk",
+  "couponDetails": "short note on active discount, Rakuten cashback, or card perk",
+  "cashbackPct": number (Rakuten or card cashback % if applicable, else 0),
+  "cashbackSource": "e.g. Rakuten, Target RedCard, Prime Visa, or empty string",
   "otherPrices": "Retailer A $X | Retailer B $Y",
   "url": "direct product or deal URL if known, else empty string",
   "imageUrl": "direct https:// product photo URL from search results if available, else empty string",
@@ -2720,6 +2761,8 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
         retailer: parsed.retailer || 'Amazon',
         promoCode: parsed.promoCode || '',
         couponDetails: parsed.couponDetails || '',
+        cashbackPct: Number(parsed.cashbackPct) || 0,
+        cashbackSource: parsed.cashbackSource || '',
         otherPrices: parsed.otherPrices || '',
         url: parsed.url || '',
         imageUrl: parsed.imageUrl || '',
@@ -2982,6 +3025,8 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
         retailer: document.getElementById('form-retailer').value.trim(),
         promoCode: document.getElementById('form-promo-code').value.trim(),
         couponDetails: document.getElementById('form-coupon-notes').value.trim(),
+        cashbackPct: parseFloat(document.getElementById('form-cashback-pct').value) || 0,
+        cashbackSource: document.getElementById('form-cashback-source').value.trim(),
         otherPrices: document.getElementById('form-other-prices').value.trim(),
         url: document.getElementById('form-url').value.trim(),
         imageUrl: document.getElementById('form-image-url').value.trim(),
