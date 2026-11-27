@@ -2278,8 +2278,18 @@ Return ONLY valid JSON with these keys:
       }
     }
 
-    async function callGeminiWithSearch(apiKey, prompt) {
-      const candidateModels = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+    async function callGeminiWithSearch(rawKey, prompt) {
+      const apiKey = String(rawKey || '').replace(/\s+/g, '');
+      const discovered = await discoverActiveGeminiModels(apiKey);
+      const preferred = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
+      const ordered = [];
+      for (const p of preferred) {
+        if (discovered.length === 0 || discovered.includes(p)) ordered.push(p);
+      }
+      for (const d of discovered) {
+        if (!ordered.includes(d)) ordered.push(d);
+      }
+      const candidateModels = ordered.slice(0, 3);
       let lastErr = '';
 
       const tryModel = async (modelId) => {
@@ -2304,36 +2314,34 @@ Return ONLY valid JSON with these keys:
             const errBody = await resp.text().catch(() => '');
             lastErr = `Gemini API error (${resp.status}): ${errBody.slice(0, 140)}`;
           }
-        } catch (e) {}
+        } catch (e) {
+          lastErr = `Network error (${e.message || 'Load failed'}) — check internet or Safari Content Blockers.`;
+        }
 
         // 2) Fallback without tools (standard JSON mode)
-        const resp2 = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: 'application/json' }
-          })
-        });
-        if (resp2.ok) {
-          const data2 = await resp2.json();
-          const text2 = data2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          return extractJsonObject(text2);
+        try {
+          const resp2 = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: 'application/json' }
+            })
+          });
+          if (resp2.ok) {
+            const data2 = await resp2.json();
+            const text2 = data2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            return extractJsonObject(text2);
+          }
+          const errBody2 = await resp2.text().catch(() => '');
+          lastErr = `Gemini API error (${resp2.status}): ${errBody2.slice(0, 140)}`;
+        } catch (e2) {
+          lastErr = `Network error (${e2.message || 'Load failed'}) — check internet or Safari Content Blockers.`;
         }
-        const errBody2 = await resp2.text().catch(() => '');
-        lastErr = `Gemini API error (${resp2.status}): ${errBody2.slice(0, 140)}`;
         return null;
       };
 
       for (const m of candidateModels) {
-        const res = await tryModel(m);
-        if (res) return res;
-      }
-
-      // 3) Dynamic model discovery fallback if all preset IDs returned 404
-      const discovered = await discoverActiveGeminiModels(apiKey);
-      for (const m of discovered) {
-        if (candidateModels.includes(m)) continue;
         const res = await tryModel(m);
         if (res) return res;
       }
