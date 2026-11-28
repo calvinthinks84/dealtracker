@@ -949,19 +949,20 @@
       return 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-600/20';
     }
 
-    function renderKPIs() {
-      const activePool = state.items.filter(i => i.status !== 'Purchased');
+    function renderKPIs(filtered) {
+      const activePool = Array.isArray(filtered) ? filtered : getFilteredItems();
       const totalMsrp = activePool.reduce((acc, i) => acc + (Number(i.msrp) || 0), 0);
       const totalBest = activePool.reduce((acc, i) => acc + (Number(i.bestPrice) || 0), 0);
       const totalSaved = Math.max(0, totalMsrp - totalBest);
       const totalCashback = activePool.reduce((acc, i) => acc + getCashbackInfo(i).cashbackDollar, 0);
       const avgPct = totalMsrp > 0 ? (totalSaved / totalMsrp) * 100 : 0;
       const maxPct = activePool.reduce((m, i) => Math.max(m, calcSavings(i).pct), 0);
-      const activeDealsCount = state.items.filter(i => i.status === 'Deal Active').length;
+      const activeDealsCount = activePool.filter(i => i.status === 'Deal Active').length;
       const targetHitsCount = activePool.filter(i => i.targetPrice && Number(i.bestPrice) <= Number(i.targetPrice)).length;
+      const itemLabel = state.categoryFilter !== 'All' ? `${state.categoryFilter} items` : 'matching items';
 
       const kpis = [
-        { label: 'Total Wishlist Value', value: fmtCurrency(totalMsrp), sub: `${activePool.length} active items`, icon: 'shopping-bag', tone: 'text-slate-900', bg: 'bg-slate-100 text-slate-600' },
+        { label: 'Total Wishlist Value', value: fmtCurrency(totalMsrp), sub: `${activePool.length} ${itemLabel}`, icon: 'shopping-bag', tone: 'text-slate-900', bg: 'bg-slate-100 text-slate-600' },
         { label: 'Current Best Value', value: fmtCurrency(totalBest), sub: `${avgPct.toFixed(1)}% below MSRP`, icon: 'sparkles', tone: 'text-indigo-700', bg: 'bg-indigo-50 text-indigo-600' },
         { label: 'Total Savings ($)', value: fmtCurrency(totalSaved + totalCashback), sub: totalCashback > 0 ? `Includes ${fmtCurrency(totalCashback)} cashback` : 'Across tracked deals', icon: 'piggy-bank', tone: 'text-emerald-700', bg: 'bg-emerald-50 text-emerald-600' },
         { label: 'Max Savings Rate', value: `${maxPct.toFixed(1)}%`, sub: 'Highest item discount', icon: 'percent', tone: 'text-amber-700', bg: 'bg-amber-50 text-amber-600' },
@@ -1573,10 +1574,17 @@
       `;
     }
 
-    function renderAnalyticsSection() {
-      const optionsHtml = state.items.map(i => `
-        <option value="${escapeHtml(i.id)}" ${i.id === state.selectedAnalyticsId ? 'selected' : ''}>${escapeHtml(i.name)}</option>
-      `).join('');
+    function renderAnalyticsSection(filtered) {
+      const pool = [...(Array.isArray(filtered) ? filtered : getFilteredItems())]
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+      if (pool.length > 0 && !pool.some(i => i.id === state.selectedAnalyticsId)) {
+        state.selectedAnalyticsId = pool[0].id;
+      }
+      const optionsHtml = pool.length > 0
+        ? pool.map(i => `
+            <option value="${escapeHtml(i.id)}" ${i.id === state.selectedAnalyticsId ? 'selected' : ''}>${escapeHtml(i.name)}</option>
+          `).join('')
+        : '<option value="">No matching items</option>';
 
       return `
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1615,13 +1623,16 @@
       `;
     }
 
-    function initCharts() {
+    function initCharts(filtered) {
       if (chartInstances.savings) { try { chartInstances.savings.destroy(); } catch (e) {} }
       if (chartInstances.forecast) { try { chartInstances.forecast.destroy(); } catch (e) {} }
 
+      const activeFiltered = [...(Array.isArray(filtered) ? filtered : getFilteredItems())]
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
       const savingsCanvas = document.getElementById('chart-savings');
       if (savingsCanvas && typeof Chart !== 'undefined') {
-        const pool = state.items.filter(i => i.status !== 'Purchased');
+        const pool = activeFiltered;
         const labels = pool.map(i => i.name.length > 22 ? i.name.slice(0, 20) + '…' : i.name);
         const bestData = pool.map(i => Number(i.bestPrice) || 0);
         const savedData = pool.map(i => calcSavings(i).dollar);
@@ -1652,7 +1663,7 @@
 
       const forecastCanvas = document.getElementById('chart-forecast');
       if (forecastCanvas && typeof Chart !== 'undefined') {
-        const selectedItem = state.items.find(i => i.id === state.selectedAnalyticsId) || state.items[0];
+        const selectedItem = activeFiltered.find(i => i.id === state.selectedAnalyticsId) || activeFiltered[0];
         if (selectedItem) {
           const hist = getItemHistory6m(selectedItem);
           const labels = hist.map(p => p.label);
@@ -2055,11 +2066,18 @@
 
     function syncCategoryDropdowns() {
       const cats = getAllCategories();
+      const usedCats = Array.from(new Set(
+        state.items.map(i => (i.category || '').trim()).filter(Boolean)
+      )).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
       const filterSel = document.getElementById('category-select');
       const prevFilter = state.categoryFilter;
       filterSel.innerHTML = `<option value="All">All Categories</option>` +
-        cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-      filterSel.value = cats.includes(prevFilter) || prevFilter === 'All' ? prevFilter : 'All';
+        usedCats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      if (prevFilter !== 'All' && !usedCats.includes(prevFilter)) {
+        state.categoryFilter = 'All';
+      }
+      filterSel.value = state.categoryFilter;
 
       const formSel = document.getElementById('form-category');
       const prevForm = formSel.value;
@@ -2073,24 +2091,24 @@
     function renderAll() {
       document.getElementById('sync-timestamp').textContent = `Synced ${state.lastSyncedAt}`;
       syncCategoryDropdowns();
-      renderKPIs();
+      const filtered = getFilteredItems();
+      renderKPIs(filtered);
       renderStatusPills();
       updateViewTabs();
 
-      const filtered = getFilteredItems();
       const main = document.getElementById('main-content');
 
       const smartBanner = renderSmartSearchBanner();
       if (state.viewMode === 'cards') {
-        main.innerHTML = smartBanner + renderCardsView(filtered) + renderAnalyticsSection();
+        main.innerHTML = smartBanner + renderCardsView(filtered) + renderAnalyticsSection(filtered);
       } else if (state.viewMode === 'table') {
-        main.innerHTML = smartBanner + renderTableView(filtered) + renderAnalyticsSection();
+        main.innerHTML = smartBanner + renderTableView(filtered) + renderAnalyticsSection(filtered);
       } else {
-        main.innerHTML = smartBanner + renderAnalyticsSection();
+        main.innerHTML = smartBanner + renderAnalyticsSection(filtered);
       }
 
       bindDynamicListeners();
-      initCharts();
+      initCharts(filtered);
       if (window.lucide) lucide.createIcons();
     }
 
