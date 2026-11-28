@@ -161,6 +161,10 @@
           <input id="batch-api-key" type="password" placeholder="AIza..." class="flex-1 min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none" />
           <button id="btn-batch-start-with-key" type="button" class="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700">Start Price Update</button>
         </div>
+        <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer">
+          <input id="batch-skip-fresh" type="checkbox" checked class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+          <span>Skip items already checked in the last 60 min (saves API quota)</span>
+        </label>
       </div>
       <div class="h-2.5 w-full overflow-hidden rounded-full bg-emerald-100">
         <div id="batch-progress-bar" class="h-full w-0 rounded-full bg-emerald-600 transition-all duration-300"></div>
@@ -2764,34 +2768,61 @@ Apply Standard Deal Query Criteria:
       if (window.lucide) lucide.createIcons();
     }
 
-    function extractJsonObject(text) {
+    function extractJsonObject(text, expectArray = false) {
       const cleaned = String(text || '').replace(/```json\s*/gi, '').replace(/```/g, '').trim();
-      const match = cleaned.match(/\{[\s\S]*\}/);
+      const pattern = expectArray ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/;
+      const match = cleaned.match(pattern) || cleaned.match(/\{[\s\S]*\}/);
       if (!match) throw new Error('Could not parse JSON from Gemini response');
       return JSON.parse(match[0]);
     }
 
-    const _geminiModelCache = new Map();
-    async function discoverActiveGeminiModels(apiKey) {
-      if (_geminiModelCache.has(apiKey)) return _geminiModelCache.get(apiKey);
+    const _geminiModelPromiseCache = new Map();
+    const _exhaustedGeminiModels = new Set();
+    function getPinnedGeminiChoice(apiKey) {
+      if (window._workingGeminiChoice && window._workingGeminiChoice.key === apiKey) return window._workingGeminiChoice;
       try {
-        const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
-        if (!resp.ok) return [];
-        const data = await resp.json();
-        const models = (data.models || [])
-          .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-          .map(m => String(m.name || '').replace(/^models\//, ''))
-          .filter(name => name.includes('gemini') && name.includes('flash') && !name.includes('tts') && !name.includes('image') && !name.includes('audio'));
-        const res = models.reverse();
-        _geminiModelCache.set(apiKey, res);
-        return res;
-      } catch (e) {
-        return [];
-      }
+        const raw = sessionStorage.getItem('gemini_working_model_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.key === apiKey) {
+            window._workingGeminiChoice = parsed;
+            return parsed;
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+    function setPinnedGeminiChoice(choice) {
+      window._workingGeminiChoice = choice;
+      try {
+        if (choice) sessionStorage.setItem('gemini_working_model_v1', JSON.stringify(choice));
+        else sessionStorage.removeItem('gemini_working_model_v1');
+      } catch (e) {}
+    }
+
+    async function discoverActiveGeminiModels(apiKey) {
+      if (_geminiModelPromiseCache.has(apiKey)) return _geminiModelPromiseCache.get(apiKey);
+      const p = (async () => {
+        try {
+          const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+          if (!resp.ok) return [];
+          const data = await resp.json();
+          const models = (data.models || [])
+            .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+            .map(m => String(m.name || '').replace(/^models\//, ''))
+            .filter(name => name.includes('gemini') && name.includes('flash') && !name.includes('tts') && !name.includes('image') && !name.includes('audio'));
+          return models.reverse();
+        } catch (e) {
+          return [];
+        }
+      })();
+      _geminiModelPromiseCache.set(apiKey, p);
+      return p;
     }
 
     async function callGeminiWithSearch(rawKey, prompt, options = {}) {
       const requireSearch = Boolean(options.requireSearch);
+      const expectArray = Boolean(options.expectArray);
       const apiKey = String(rawKey || '').replace(/\s+/g, '');
       const discovered = await discoverActiveGeminiModels(apiKey);
       // Prioritize full Flash models (which support live Google Search grounding) over flash-lite
@@ -2807,6 +2838,8 @@ Apply Standard Deal Query Criteria:
       let lastErr = '';
 
       const tryModel = async (modelId, useSearch) => {
+        const exKey = `${apiKey}::${modelId}`;
+        if (_exhaustedGeminiModels.has(exKey)) return null;
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const payload = useSearch
           ? { contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }] }
@@ -2820,7 +2853,9 @@ Apply Standard Deal Query Criteria:
           });
           if (resp.status === 429) {
             const peekBody = await resp.clone().text().catch(() => '');
-            if (!/limit:\s*0|exceeded your current quota/i.test(peekBody)) {
+            if (/limit:\s*0/i.test(peekBody)) {
+              _exhaustedGeminiModels.add(exKey);
+            } else if (!/exceeded your current quota/i.test(peekBody)) {
               await new Promise(r => setTimeout(r, 2500));
               resp = await fetch(endpoint, {
                 method: 'POST',
@@ -2834,10 +2869,10 @@ Apply Standard Deal Query Criteria:
             const cand = data?.candidates?.[0];
             const parts = cand?.content?.parts || [];
             const text = parts.map(p => p.text || '').join('\n');
-            const parsed = extractJsonObject(text);
+            const parsed = extractJsonObject(text, expectArray);
             const chunks = cand?.groundingMetadata?.groundingChunks || [];
             const groundedUrls = chunks.map(c => c?.web?.uri).filter(Boolean);
-            if (!parsed.url && groundedUrls.length > 0) {
+            if (!Array.isArray(parsed) && !parsed.url && groundedUrls.length > 0) {
               parsed.url = groundedUrls[0];
             }
             parsed._groundedCount = groundedUrls.length;
@@ -2855,17 +2890,18 @@ Apply Standard Deal Query Criteria:
         return null;
       };
 
-      if (window._workingGeminiChoice && window._workingGeminiChoice.key === apiKey && (!requireSearch || window._workingGeminiChoice.useSearch)) {
-        const fastRes = await tryModel(window._workingGeminiChoice.model, window._workingGeminiChoice.useSearch);
+      const pinned = getPinnedGeminiChoice(apiKey);
+      if (pinned && (!requireSearch || pinned.useSearch)) {
+        const fastRes = await tryModel(pinned.model, pinned.useSearch);
         if (fastRes && (!requireSearch || fastRes._groundedCount > 0)) return fastRes;
-        window._workingGeminiChoice = null;
+        setPinnedGeminiChoice(null);
       }
 
       // Pass 1: Require live Google Search grounding first across candidate models
       for (const m of candidateModels) {
         const res = await tryModel(m, true);
         if (res && res._groundedCount > 0) {
-          window._workingGeminiChoice = { key: apiKey, model: m, useSearch: true };
+          setPinnedGeminiChoice({ key: apiKey, model: m, useSearch: true });
           return res;
         }
       }
@@ -2878,7 +2914,7 @@ Apply Standard Deal Query Criteria:
       for (const m of candidateModels) {
         const res = await tryModel(m, false);
         if (res) {
-          window._workingGeminiChoice = { key: apiKey, model: m, useSearch: false };
+          setPinnedGeminiChoice({ key: apiKey, model: m, useSearch: false });
           return res;
         }
       }
@@ -3166,12 +3202,23 @@ Requirements:
         await syncFromGoogleSheet(false);
       }
 
-      const targets = state.items.filter(i => i.status !== 'Purchased');
+      const skipFresh = document.getElementById('batch-skip-fresh')?.checked ?? true;
+      const nowMs = Date.now();
+      const isFreshlyChecked = (item) => {
+        if (!skipFresh || !item.lastChecked) return false;
+        const parsedMs = Date.parse(String(item.lastChecked).replace(' PST', ' GMT-0800').replace(' PDT', ' GMT-0700'));
+        return !Number.isNaN(parsedMs) && (nowMs - parsedMs) < 60 * 60 * 1000;
+      };
+
+      const activeItems = state.items.filter(i => i.status !== 'Purchased');
+      const targets = activeItems.filter(i => !isFreshlyChecked(i));
       const skippedCount = state.items.length - targets.length;
       if (targets.length === 0) {
-        countEl.textContent = '0 Active';
-        titleEl.textContent = 'No Active Items to Update';
-        subEl.textContent = 'All tracked items are marked Purchased or no items were found.';
+        countEl.textContent = 'All Fresh';
+        titleEl.textContent = 'All Active Items Recently Updated';
+        subEl.textContent = activeItems.length > 0
+          ? 'All active items were checked within the last 60 minutes. Uncheck "Skip items already checked" to force a refresh.'
+          : 'All tracked items are marked Purchased or no items were found.';
         barEl.style.width = '100%';
         return;
       }
@@ -3187,78 +3234,145 @@ Requirements:
       let updatedCount = 0;
       let failedCount = 0;
       let completedCount = 0;
-      let nextIdx = 0;
       let lastErrorMsg = '';
-      const CONCURRENCY = Math.min(2, targets.length);
+      const BATCH_SIZE = 5;
+      const chunks = [];
+      for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+        chunks.push(targets.slice(i, i + BATCH_SIZE));
+      }
 
       countEl.textContent = `0 of ${targets.length} (0%)`;
-      titleEl.textContent = `Checking ${targets.length} active items (${CONCURRENCY} parallel searches)...`;
-      subEl.textContent = `Running fast parallel live 2026 retail price, promo & prediction checks...`;
+      titleEl.textContent = `Batch-checking ${targets.length} items in ${chunks.length} API calls...`;
+      subEl.textContent = `Checking Google Shopping, Amazon, Costco, Target (+5% Circle), Walmart, Best Buy, B&H, Apple, Micro Center, Slickdeals, Rakuten & card offers...`;
       barEl.style.width = '4%';
 
-      async function processItem(item) {
-        const model = getItemModel(item);
-        const prompt = buildLiveDealSearchPrompt(item, model);
+      function applyParsedToItem(item, parsed) {
+        const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
+        const bestPrice = parsePriceNum(parsed.bestPrice) || parsePriceNum(item.bestPrice) || msrp;
+        const low6m = parsePriceNum(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
+        const high6m = parsePriceNum(parsed.high6m) || Math.max(msrp, item.high6m || msrp);
+        return {
+          ...item,
+          msrp,
+          bestPrice,
+          retailer: parsed.retailer || item.retailer,
+          promoCode: parsed.promoCode !== undefined ? parsed.promoCode : item.promoCode,
+          couponDetails: parsed.couponDetails !== undefined ? parsed.couponDetails : item.couponDetails,
+          cashbackPct: parsed.cashbackPct !== undefined ? Number(parsed.cashbackPct) : item.cashbackPct,
+          cashbackSource: parsed.cashbackSource !== undefined ? parsed.cashbackSource : item.cashbackSource,
+          otherPrices: parsed.otherPrices || item.otherPrices,
+          url: (parsed.url && String(parsed.url).startsWith('http')) ? parsed.url : item.url,
+          low6m,
+          high6m,
+          history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-mo range)`,
+          priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
+          whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
+          projection: parsed.projection || item.projection,
+          status: bestPrice < msrp ? 'Deal Active' : 'Monitoring',
+          lastChecked: formatIsoDateTime(),
+          offers: []
+        };
+      }
+
+      function buildChunkPrompt(chunk) {
+        const todayStr = new Date().toLocaleDateString('en-US', {
+          timeZone: 'America/Los_Angeles',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        const itemsText = chunk.map(it => {
+          const m = getItemModel(it);
+          return `- id: "${it.id}" | Name: ${it.name}${m ? ' | Model: ' + m : ''} | Config: ${it.config || 'Standard'} | Current: $${it.bestPrice} at ${it.retailer} (MSRP $${it.msrp})`;
+        }).join('\n');
+        return `CRITICAL: Today's actual date is ${todayStr}. Use LIVE Google Search grounding for ${todayStr} ONLY. NEVER fall back to 2024 or prior-year estimates.
+
+Verify live US retail pricing and buy-timing predictions as of ${todayStr} for ALL ${chunk.length} items below across Google Shopping, Amazon, Costco, Target (+ 5% Circle Card), Walmart, Best Buy, B&H Photo, Apple, Micro Center, CDW, Adorama, Newegg, brand direct stores, Slickdeals.net, Slickdeals SIFT, Rakuten, Capital One Shopping, Citi Card, and Chase Sapphire Reserve:
+
+${itemsText}
+
+Return ONLY a valid JSON array with one object per item (matching exact "id"):
+[
+  {
+    "id": string,
+    "msrp": number,
+    "bestPrice": number,
+    "retailer": string,
+    "promoCode": string,
+    "couponDetails": string,
+    "cashbackPct": number,
+    "cashbackSource": string,
+    "otherPrices": "Retailer A $X | Retailer B $Y",
+    "url": "direct retailer product detail page URL",
+    "low6m": number,
+    "high6m": number,
+    "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
+    "projection": string
+  }
+]`;
+      }
+
+      for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+        if (batchCancelRequested) break;
+        const chunk = chunks[cIdx];
+        titleEl.textContent = `Batch ${cIdx + 1} of ${chunks.length}: checking ${chunk.map(x => x.name).join(', ')}`;
+        let remaining = [...chunk];
+
         try {
-          const parsed = await callGeminiWithSearch(apiKey, prompt, { requireSearch: true });
-          const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
-          const bestPrice = parsePriceNum(parsed.bestPrice) || parsePriceNum(item.bestPrice) || msrp;
-          const low6m = parsePriceNum(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
-          const high6m = parsePriceNum(parsed.high6m) || Math.max(msrp, item.high6m || msrp);
-          const updated = {
-            ...item,
-            msrp,
-            bestPrice,
-            retailer: parsed.retailer || item.retailer,
-            promoCode: parsed.promoCode !== undefined ? parsed.promoCode : item.promoCode,
-            couponDetails: parsed.couponDetails !== undefined ? parsed.couponDetails : item.couponDetails,
-            cashbackPct: parsed.cashbackPct !== undefined ? Number(parsed.cashbackPct) : item.cashbackPct,
-            cashbackSource: parsed.cashbackSource !== undefined ? parsed.cashbackSource : item.cashbackSource,
-            otherPrices: parsed.otherPrices || item.otherPrices,
-            url: (parsed.url && String(parsed.url).startsWith('http')) ? parsed.url : item.url,
-            low6m,
-            high6m,
-            history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-mo range)`,
-            priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
-            whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
-            projection: parsed.projection || item.projection,
-            status: bestPrice < msrp ? 'Deal Active' : 'Monitoring',
-            lastChecked: formatIsoDateTime(),
-            offers: []
-          };
-          state.items = state.items.map(i => i.id === item.id ? updated : i);
-          saveState(true);
-          pushItemToGoogleSheet(updated, 'update');
-          updatedCount++;
-          completedCount++;
-          const donePct = Math.round((completedCount / targets.length) * 100);
-          countEl.textContent = `${completedCount} of ${targets.length} (${donePct}%)`;
-          titleEl.textContent = `Updating (${completedCount}/${targets.length}) — latest: ${updated.name}`;
-          barEl.style.width = `${Math.max(4, donePct)}%`;
-          lastEl.textContent = `Updated ${completedCount}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer} (${updated.whenToBuy})`;
-          lastEl.classList.remove('hidden');
+          const arr = await callGeminiWithSearch(apiKey, buildChunkPrompt(chunk), { requireSearch: true, expectArray: true });
+          const results = Array.isArray(arr) ? arr : [arr];
+          const matchedIds = new Set();
+          for (const parsed of results) {
+            if (!parsed || typeof parsed !== 'object') continue;
+            const target = chunk.find(it => it.id === parsed.id) || chunk.find(it => parsed.name && it.name.toLowerCase().includes(String(parsed.name).toLowerCase().slice(0, 12)));
+            if (!target || matchedIds.has(target.id)) continue;
+            matchedIds.add(target.id);
+            const updated = applyParsedToItem(target, parsed);
+            state.items = state.items.map(i => i.id === target.id ? updated : i);
+            saveState(true);
+            pushItemToGoogleSheet(updated, 'update');
+            updatedCount++;
+            completedCount++;
+            lastEl.textContent = `Updated ${completedCount}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`;
+            lastEl.classList.remove('hidden');
+          }
+          remaining = chunk.filter(it => !matchedIds.has(it.id));
           renderAll();
         } catch (err) {
-          failedCount++;
-          completedCount++;
-          lastErrorMsg = err.message || 'Lookup failed';
-          const donePct = Math.round((completedCount / targets.length) * 100);
-          countEl.textContent = `${completedCount} of ${targets.length} (${donePct}%)`;
-          barEl.style.width = `${Math.max(4, donePct)}%`;
-          lastEl.textContent = `Skipped ${completedCount}/${targets.length}: ${item.name} (${lastErrorMsg})`;
-          lastEl.classList.remove('hidden');
+          lastErrorMsg = err.message || 'Batch lookup failed';
+        }
+
+        // Fallback to single-item lookup only for any item omitted from the chunk response
+        for (const item of remaining) {
+          if (batchCancelRequested) break;
+          try {
+            const parsed = await callGeminiWithSearch(apiKey, buildLiveDealSearchPrompt(item, getItemModel(item)), { requireSearch: true });
+            const updated = applyParsedToItem(item, parsed);
+            state.items = state.items.map(i => i.id === item.id ? updated : i);
+            saveState(true);
+            pushItemToGoogleSheet(updated, 'update');
+            updatedCount++;
+            completedCount++;
+            lastEl.textContent = `Updated ${completedCount}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`;
+            lastEl.classList.remove('hidden');
+            renderAll();
+          } catch (err) {
+            failedCount++;
+            completedCount++;
+            lastErrorMsg = err.message || 'Lookup failed';
+            lastEl.textContent = `Skipped ${completedCount}/${targets.length}: ${item.name} (${lastErrorMsg})`;
+            lastEl.classList.remove('hidden');
+          }
+        }
+
+        const donePct = Math.round((completedCount / targets.length) * 100);
+        barEl.style.width = `${Math.max(4, donePct)}%`;
+        countEl.textContent = `${completedCount} of ${targets.length} (${donePct}%)`;
+
+        if (cIdx < chunks.length - 1 && !batchCancelRequested) {
+          await new Promise(r => setTimeout(r, 1200));
         }
       }
-
-      async function worker() {
-        while (!batchCancelRequested) {
-          const i = nextIdx++;
-          if (i >= targets.length) break;
-          await processItem(targets[i]);
-        }
-      }
-
-      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
       state.recalculatingId = null;
       batchUpdating = false;
