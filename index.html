@@ -71,7 +71,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-1.5 sm:flex sm:flex-nowrap sm:items-center sm:gap-2">
+        <div class="grid grid-cols-2 gap-1.5 sm:flex sm:flex-nowrap sm:items-center sm:gap-2">
           <a
             href="https://docs.google.com/spreadsheets/d/1iJrE9BQsH8HxROE_mDXM0-5zPgV2Hq8RkU6PqCI_aKA/edit"
             target="_blank"
@@ -89,64 +89,12 @@
             <i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0 text-violet-600"></i>
             <span>AI Smart Add</span>
           </button>
-          <button
-            id="btn-update-all-prices"
-            type="button"
-            title="Out-of-band live price &amp; prediction update for all active items"
-            class="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-slate-50 hover:text-indigo-700 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-xs"
-          >
-            <i data-lucide="refresh-cw" class="h-3.5 w-3.5 shrink-0 text-indigo-600"></i>
-            <span class="sm:hidden">Update Prices</span>
-            <span class="hidden sm:inline">Update All Prices</span>
-          </button>
         </div>
       </div>
     </div>
   </header>
 
   <main class="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5 lg:px-8 space-y-4">
-
-    <!-- Out-of-Band Batch Price Update Banner -->
-    <section id="batch-update-banner" class="hidden sticky top-3 z-40 rounded-2xl border border-emerald-300 bg-white/95 p-4 shadow-lg backdrop-blur space-y-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-            <i id="batch-update-icon" data-lucide="refresh-cw" class="h-4 w-4"></i>
-          </div>
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <span id="batch-progress-count" class="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-bold text-white">Preparing...</span>
-              <p id="batch-update-title" class="text-xs font-bold text-slate-900 truncate">Out-of-Band Live Price &amp; Prediction Update</p>
-            </div>
-            <p id="batch-update-subtitle" class="text-[11px] text-slate-600 mt-0.5">Preparing live retail checks...</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <button id="btn-batch-stop" type="button" class="hidden rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">Stop</button>
-          <button id="btn-batch-close" type="button" class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Dismiss</button>
-        </div>
-      </div>
-      <div id="batch-key-box" class="hidden space-y-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-        <div class="flex items-center justify-between gap-2">
-          <label for="batch-api-key" class="text-[11px] font-semibold text-slate-700">
-            Configure Gemini API Key (saved locally in this browser) ·
-            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">Get free key</a>
-          </label>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <input id="batch-api-key" type="password" placeholder="AIza..." class="flex-1 min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none" />
-          <button id="btn-batch-start-with-key" type="button" class="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700">Start Price Update</button>
-        </div>
-        <label class="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-700 cursor-pointer">
-          <input id="batch-skip-fresh" type="checkbox" checked class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-          <span>Skip items already checked in the last 60 min (saves API quota)</span>
-        </label>
-      </div>
-      <div class="h-2.5 w-full overflow-hidden rounded-full bg-emerald-100">
-        <div id="batch-progress-bar" class="h-full w-0 rounded-full bg-emerald-600 transition-all duration-300"></div>
-      </div>
-      <p id="batch-last-updated" class="hidden text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5"></p>
-    </section>
 
     <!-- Toolbar: Smart Search above Filter Selections -->
     <section class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm space-y-3">
@@ -506,6 +454,7 @@
               <select id="form-status" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                 <option value="Deal Active">Deal Active</option>
                 <option value="Monitoring">Monitoring</option>
+                <option value="Needs Price Check">Needs Price Check</option>
                 <option value="Purchased">Purchased</option>
               </select>
             </div>
@@ -1039,6 +988,7 @@
         Current: state.items.filter(i => i.status !== 'Purchased').length,
         'Deal Active': state.items.filter(i => i.status === 'Deal Active').length,
         Monitoring: state.items.filter(i => i.status === 'Monitoring').length,
+        'Needs Price Check': state.items.filter(i => i.status === 'Needs Price Check').length,
         Purchased: state.items.filter(i => i.status === 'Purchased').length,
         All: state.items.length
       };
@@ -1276,6 +1226,9 @@
     }
 
     function statusBadgeHTML(item) {
+      if (item.status === 'Needs Price Check') {
+        return `<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-600/20"><i data-lucide="clock" class="h-3 w-3 text-amber-600"></i> Needs Price Check</span>`;
+      }
       if (item.status === 'Purchased') {
         return `<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700"><i data-lucide="check-circle" class="h-3 w-3 text-slate-500"></i> Purchased</span>`;
       }
@@ -2466,7 +2419,7 @@
       if (d.category && ['Tech', 'Home & Office', 'Apparel', 'Kids & Toys', 'Other'].includes(d.category)) {
         document.getElementById('form-category').value = d.category;
       }
-      if (d.status && ['Deal Active', 'Monitoring', 'Purchased'].includes(d.status)) {
+      if (d.status && ['Deal Active', 'Monitoring', 'Needs Price Check', 'Purchased'].includes(d.status)) {
         document.getElementById('form-status').value = d.status;
       }
       if (d.msrp !== undefined && d.msrp !== null && !Number.isNaN(Number(d.msrp))) {
@@ -2691,6 +2644,7 @@ Apply Standard Deal Query Criteria:
 
     async function callGeminiWithSearch(rawKey, prompt, options = {}) {
       const requireSearch = Boolean(options.requireSearch);
+      const noSearch = Boolean(options.noSearch);
       const expectArray = Boolean(options.expectArray);
       const apiKey = String(rawKey || '').replace(/\s+/g, '');
       const discovered = await discoverActiveGeminiModels(apiKey);
@@ -2760,18 +2714,20 @@ Apply Standard Deal Query Criteria:
       };
 
       const pinned = getPinnedGeminiChoice(apiKey);
-      if (pinned && (!requireSearch || pinned.useSearch)) {
+      if (pinned && (!requireSearch || pinned.useSearch) && (!noSearch || !pinned.useSearch)) {
         const fastRes = await tryModel(pinned.model, pinned.useSearch);
         if (fastRes && (!requireSearch || fastRes._groundedCount > 0)) return fastRes;
         setPinnedGeminiChoice(null);
       }
 
-      // Pass 1: Require live Google Search grounding first across candidate models
-      for (const m of candidateModels) {
-        const res = await tryModel(m, true);
-        if (res && res._groundedCount > 0) {
-          setPinnedGeminiChoice({ key: apiKey, model: m, useSearch: true });
-          return res;
+      if (!noSearch) {
+        // Pass 1: Require live Google Search grounding first across candidate models
+        for (const m of candidateModels) {
+          const res = await tryModel(m, true);
+          if (res && res._groundedCount > 0) {
+            setPinnedGeminiChoice({ key: apiKey, model: m, useSearch: true });
+            return res;
+          }
         }
       }
 
@@ -2805,43 +2761,26 @@ Apply Standard Deal Query Criteria:
       const btn = document.getElementById('btn-ai-submit');
       btn.disabled = true;
       btn.classList.add('opacity-60');
-      setAiModalStatus('Gemini AI is searching live prices, coupons & buy timing...');
+      setAiModalStatus('Identifying product name, model #, specs & image (no price search)...');
 
-      const prompt = `The user wants to add a product to their Wishlist Deals Tracker: "${raw}".
-Follow this strict multi-retailer deal-hunting standard:
-1. Search across ALL major US retailers (Amazon, Costco, Target, Walmart, Best Buy, B&H Photo, Apple Store, and the official brand site), Slickdeals.net, Rakuten cashback rates, and active coupon/promo code sources.
-2. ALWAYS validate MSRP and Best Current Price against live current web search deal prices (never use outdated 2024/2025 training-data estimates), and apply active promo codes, in-cart coupons, or instant discounts to find the TRUE LOWEST current net price.
-3. List at least 2-3 competing retailer prices in "otherPrices" (e.g. "Amazon $X | Best Buy $Y | Target $Z").
-4. Include any active promo code, coupon, or card/cashback perk in "promoCode" and "couponDetails".
-5. Provide the 6-month price range ("low6m", "high6m") and a concrete "whenToBuy" verdict + 3-6 month "projection".
+      const prompt = `Extract product metadata ONLY from this user input: "${raw}".
+Do NOT search for or estimate prices. Only populate the product identity and specs so the Wish List Deal Tracker bot can price-check it later.
 
-Return ONLY a raw JSON object (no markdown, no explanation) with these exact keys:
+Return ONLY a raw JSON object with these keys:
 {
-  "name": "clean product title",
-  "config": "color, model number, size, or key specs",
+  "name": "clean official product title",
+  "modelNumber": "exact manufacturer model or part number if known, else empty string",
+  "config": "color, capacity, size, or key specs",
   "category": "Tech" | "Home & Office" | "Apparel" | "Kids & Toys" | "Other",
-  "status": "Deal Active" | "Monitoring",
-  "msrp": number (regular US MSRP in USD, must be > 0),
-  "bestPrice": number (best current US retail price in USD, must be > 0),
-  "targetPrice": number (user requested alert price if mentioned, else ~15% below msrp),
-  "retailer": "best current retailer (e.g. Amazon, Best Buy, Costco, Target, Walmart, Williams Sonoma, Brand Direct)",
-  "promoCode": "active promo code if any, else empty string",
-  "couponDetails": "short note on active discount, Rakuten cashback, or card perk",
-  "cashbackPct": number (Rakuten or card cashback % if applicable, else 0),
-  "cashbackSource": "e.g. Rakuten, Target RedCard, Prime Visa, or empty string",
-  "otherPrices": "Retailer A $X | Retailer B $Y",
-  "url": "direct retailer product detail page URL (never a blog, news article, or search results page), else empty string",
-  "imageUrl": "direct https:// product photo URL from search results if available, else empty string",
-  "low6m": number (6-month low price in USD),
-  "high6m": number (6-month high price in USD),
-  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
-  "projection": "concise 3-6 month price prediction and when to buy advice"
+  "targetPrice": number or null (only if user explicitly specified a target price),
+  "imageUrl": "direct https:// product image URL if explicitly known or provided, else empty string",
+  "url": "direct https:// URL if user pasted one, else empty string"
 }`;
 
       let parsed = null;
       if (apiKey) {
         try {
-          parsed = await callGeminiWithSearch(apiKey, prompt);
+          parsed = await callGeminiWithSearch(apiKey, prompt, { noSearch: true });
         } catch (err) {
           btn.disabled = false;
           btn.classList.remove('opacity-60');
@@ -2849,49 +2788,36 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
           return;
         }
       } else {
-        const quick = localSmartParse(raw);
-        if (!quick.bestPrice) {
-          btn.disabled = false;
-          btn.classList.remove('opacity-60');
-          document.getElementById('ai-key-box').classList.remove('hidden');
-          setAiModalStatus('Paste your AIza... Gemini API key above once so AI can look up live prices & deals (or include a $ price in your text).', true);
-          return;
-        }
-        parsed = quick;
+        parsed = localSmartParse(raw);
       }
-
-      const msrp = Number(parsed.msrp) || Number(parsed.bestPrice) || 0;
-      const bestPrice = Number(parsed.bestPrice) || msrp;
-      const low6m = Number(parsed.low6m) || bestPrice;
-      const high6m = Number(parsed.high6m) || msrp;
 
       const newItem = {
         id: 'ai-' + Date.now(),
-        name: parsed.name || 'New Wishlist Item',
+        name: parsed.name || raw,
         modelNumber: parsed.modelNumber || '',
         config: parsed.config || '',
         category: ['Tech', 'Home & Office', 'Apparel', 'Kids & Toys', 'Other'].includes(parsed.category) ? parsed.category : 'Other',
-        status: parsed.status === 'Monitoring' ? 'Monitoring' : 'Deal Active',
-        msrp,
-        bestPrice,
+        status: 'Needs Price Check',
+        msrp: 0,
+        bestPrice: 0,
         targetPrice: parsed.targetPrice ? Number(parsed.targetPrice) : null,
-        retailer: parsed.retailer || 'Amazon',
-        promoCode: parsed.promoCode || '',
-        couponDetails: parsed.couponDetails || '',
-        cashbackPct: Number(parsed.cashbackPct) || 0,
-        cashbackSource: parsed.cashbackSource || '',
-        otherPrices: parsed.otherPrices || '',
+        retailer: 'Pending Check',
+        promoCode: '',
+        couponDetails: '',
+        cashbackPct: 0,
+        cashbackSource: '',
+        otherPrices: '',
         url: parsed.url || '',
         imageUrl: parsed.imageUrl || '',
-        whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
-        projection: parsed.projection || '',
-        low6m,
-        high6m,
-        history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-month range)`,
-        priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
+        low6m: 0,
+        high6m: 0,
+        history6m: '',
+        whenToBuy: 'Needs Price Check',
+        projection: 'Tagged Needs Price Check — Wish List Deal Tracker will populate live price & prediction.',
+        priceHistory6m: [],
         offers: [],
         forecasts: [],
-        lastChecked: formatIsoDateTime()
+        lastChecked: ''
       };
 
       state.items.unshift(newItem);
@@ -2965,319 +2891,6 @@ Return ONLY a raw JSON object (no markdown, no explanation) with these exact key
       const n = Number(String(val ?? '').replace(/[^0-9.\-]/g, ''));
       return Number.isFinite(n) ? n : 0;
     }
-
-    function openBatchPriceConfig() {
-      if (batchUpdating) return;
-      const banner = document.getElementById('batch-update-banner');
-      const countEl = document.getElementById('batch-progress-count');
-      const titleEl = document.getElementById('batch-update-title');
-      const subEl = document.getElementById('batch-update-subtitle');
-      const barEl = document.getElementById('batch-progress-bar');
-      const lastEl = document.getElementById('batch-last-updated');
-      const keyBox = document.getElementById('batch-key-box');
-      const keyInput = document.getElementById('batch-api-key');
-
-      banner.classList.remove('hidden');
-      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      lastEl.classList.add('hidden');
-      lastEl.textContent = '';
-      keyBox.classList.remove('hidden');
-      keyInput.value = loadGeminiKey() || '';
-      countEl.textContent = 'Configure Key';
-      titleEl.textContent = 'Out-of-Band Live Price & Prediction Update';
-      subEl.textContent = 'Enter or confirm your Gemini API Key below, then click Start Price Update.';
-      barEl.style.width = '0%';
-      setTimeout(() => keyInput.focus(), 40);
-    }
-
-    function buildLiveDealSearchPrompt(item, model) {
-      const todayStr = new Date().toLocaleDateString('en-US', {
-        timeZone: 'America/Los_Angeles',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      return `CRITICAL: Today's actual date is ${todayStr}. Use LIVE Google Search grounding for today (${todayStr}) ONLY. NEVER use or fall back to outdated 2024 or prior-year training estimates.
-
-Verify and update the LIVE current US retail deal price and price prediction as of ${todayStr} for this exact product:
-Name: ${item.name}
-${model ? 'Model / Part #: ' + model : ''}
-Config: ${item.config || 'Standard'}
-Previous Tracked Price: $${item.bestPrice} at ${item.retailer} (MSRP: $${item.msrp})
-
-Check ALL of these live retailers, deal aggregators, cashback & card offers:
-- Google Shopping, Amazon, Costco, Target (+ 5% Target Circle Card discount), Walmart, Best Buy, B&H Photo, Apple, Micro Center, CDW, Adorama, Newegg, and brand direct stores
-- Deal & cashback sources: Slickdeals.net, Slickdeals SIFT, Rakuten, Capital One Shopping, Citi Card offers, and Chase Sapphire Reserve / Chase Offers
-
-Requirements:
-1. Validate exact MSRP and lowest current live US retail deal price as of ${todayStr} from live search results (never guess or use 2024 data).
-2. Return a direct retailer product detail page URL (never a blog, news article, or search results page).
-3. Factor in active promo codes, coupons, Target 5% Circle Card, Rakuten, Capital One Shopping, Citi Card, or Chase Reserve cash back/offers.
-4. Provide an updated buy-timing prediction (whenToBuy) and concise projection note grounded in ${todayStr} pricing.
-5. Return ONLY valid JSON with these keys:
-{
-  "msrp": number,
-  "bestPrice": number,
-  "retailer": string,
-  "promoCode": string,
-  "couponDetails": string,
-  "cashbackPct": number,
-  "cashbackSource": string,
-  "otherPrices": "Retailer A $X | Retailer B $Y",
-  "url": "direct retailer product detail page URL",
-  "low6m": number,
-  "high6m": number,
-  "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
-  "projection": string
-}`;
-    }
-
-    async function runBatchPriceUpdate() {
-      if (batchUpdating) return;
-      const banner = document.getElementById('batch-update-banner');
-      const countEl = document.getElementById('batch-progress-count');
-      const titleEl = document.getElementById('batch-update-title');
-      const subEl = document.getElementById('batch-update-subtitle');
-      const barEl = document.getElementById('batch-progress-bar');
-      const lastEl = document.getElementById('batch-last-updated');
-      const iconEl = document.getElementById('batch-update-icon');
-      const keyBox = document.getElementById('batch-key-box');
-      const stopBtn = document.getElementById('btn-batch-stop');
-      const closeBtn = document.getElementById('btn-batch-close');
-      const headerBtn = document.getElementById('btn-update-all-prices');
-
-      banner.classList.remove('hidden');
-      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      lastEl.classList.add('hidden');
-      lastEl.textContent = '';
-
-      const typedKey = document.getElementById('batch-api-key').value.trim();
-      if (typedKey) saveGeminiKey(typedKey);
-      const apiKey = loadGeminiKey();
-      if (!apiKey) {
-        keyBox.classList.remove('hidden');
-        countEl.textContent = 'API Key Needed';
-        titleEl.textContent = 'Gemini API Key Required for Live Updates';
-        subEl.textContent = 'Paste your AIza... key below and click Start Price Update.';
-        barEl.style.width = '0%';
-        document.getElementById('batch-api-key').focus();
-        return;
-      }
-      keyBox.classList.add('hidden');
-
-      if (state.items.length === 0) {
-        countEl.textContent = 'Loading...';
-        titleEl.textContent = 'Loading items from Google Sheet...';
-        await syncFromGoogleSheet(false);
-      }
-
-      const skipFresh = document.getElementById('batch-skip-fresh')?.checked ?? true;
-      const nowMs = Date.now();
-      const isFreshlyChecked = (item) => {
-        if (!skipFresh || !item.lastChecked) return false;
-        const parsedMs = Date.parse(String(item.lastChecked).replace(' PST', ' GMT-0800').replace(' PDT', ' GMT-0700'));
-        return !Number.isNaN(parsedMs) && (nowMs - parsedMs) < 60 * 60 * 1000;
-      };
-
-      const activeItems = state.items.filter(i => i.status !== 'Purchased');
-      const targets = activeItems.filter(i => !isFreshlyChecked(i));
-      const skippedCount = state.items.length - targets.length;
-      if (targets.length === 0) {
-        countEl.textContent = 'All Fresh';
-        titleEl.textContent = 'All Active Items Recently Updated';
-        subEl.textContent = activeItems.length > 0
-          ? 'All active items were checked within the last 60 minutes. Uncheck "Skip items already checked" to force a refresh.'
-          : 'All tracked items are marked Purchased or no items were found.';
-        barEl.style.width = '100%';
-        return;
-      }
-
-      batchUpdating = true;
-      batchCancelRequested = false;
-      stopBtn.classList.remove('hidden');
-      closeBtn.classList.add('hidden');
-      headerBtn.disabled = true;
-      headerBtn.classList.add('opacity-70');
-      if (iconEl) iconEl.classList.add('animate-spin');
-
-      let updatedCount = 0;
-      let failedCount = 0;
-      let completedCount = 0;
-      let lastErrorMsg = '';
-      const BATCH_SIZE = 5;
-      const chunks = [];
-      for (let i = 0; i < targets.length; i += BATCH_SIZE) {
-        chunks.push(targets.slice(i, i + BATCH_SIZE));
-      }
-
-      countEl.textContent = `0 of ${targets.length} (0%)`;
-      titleEl.textContent = `Batch-checking ${targets.length} items in ${chunks.length} API calls...`;
-      subEl.textContent = `Checking Google Shopping, Amazon, Costco, Target (+5% Circle), Walmart, Best Buy, B&H, Apple, Micro Center, Slickdeals, Rakuten & card offers...`;
-      barEl.style.width = '4%';
-
-      function applyParsedToItem(item, parsed) {
-        const msrp = parsePriceNum(parsed.msrp) || parsePriceNum(item.msrp) || 0;
-        const bestPrice = parsePriceNum(parsed.bestPrice) || parsePriceNum(item.bestPrice) || msrp;
-        const low6m = parsePriceNum(parsed.low6m) || Math.min(bestPrice, item.low6m || bestPrice);
-        const high6m = parsePriceNum(parsed.high6m) || Math.max(msrp, item.high6m || msrp);
-        return {
-          ...item,
-          msrp,
-          bestPrice,
-          retailer: parsed.retailer || item.retailer,
-          promoCode: parsed.promoCode !== undefined ? parsed.promoCode : item.promoCode,
-          couponDetails: parsed.couponDetails !== undefined ? parsed.couponDetails : item.couponDetails,
-          cashbackPct: parsed.cashbackPct !== undefined ? Number(parsed.cashbackPct) : item.cashbackPct,
-          cashbackSource: parsed.cashbackSource !== undefined ? parsed.cashbackSource : item.cashbackSource,
-          otherPrices: parsed.otherPrices || item.otherPrices,
-          url: (parsed.url && String(parsed.url).startsWith('http')) ? parsed.url : item.url,
-          low6m,
-          high6m,
-          history6m: `${fmtCurrency(low6m)} - ${fmtCurrency(high6m)} (6-mo range)`,
-          priceHistory6m: buildDefaultHistory6m(msrp, bestPrice, low6m, high6m),
-          whenToBuy: parsed.whenToBuy || (bestPrice < msrp ? 'Buy Now — Promo Code Active' : 'Wait — Price Drop Expected'),
-          projection: parsed.projection || item.projection,
-          status: bestPrice < msrp ? 'Deal Active' : 'Monitoring',
-          lastChecked: formatIsoDateTime(),
-          offers: []
-        };
-      }
-
-      function buildChunkPrompt(chunk) {
-        const todayStr = new Date().toLocaleDateString('en-US', {
-          timeZone: 'America/Los_Angeles',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
-        const itemsText = chunk.map(it => {
-          const m = getItemModel(it);
-          return `- id: "${it.id}" | Name: ${it.name}${m ? ' | Model: ' + m : ''} | Config: ${it.config || 'Standard'} | Current: $${it.bestPrice} at ${it.retailer} (MSRP $${it.msrp})`;
-        }).join('\n');
-        return `CRITICAL: Today's actual date is ${todayStr}. Use LIVE Google Search grounding for ${todayStr} ONLY. NEVER fall back to 2024 or prior-year estimates.
-
-Verify live US retail pricing and buy-timing predictions as of ${todayStr} for ALL ${chunk.length} items below across Google Shopping, Amazon, Costco, Target (+ 5% Circle Card), Walmart, Best Buy, B&H Photo, Apple, Micro Center, CDW, Adorama, Newegg, brand direct stores, Slickdeals.net, Slickdeals SIFT, Rakuten, Capital One Shopping, Citi Card, and Chase Sapphire Reserve:
-
-${itemsText}
-
-Return ONLY a valid JSON array with one object per item (matching exact "id"):
-[
-  {
-    "id": string,
-    "msrp": number,
-    "bestPrice": number,
-    "retailer": string,
-    "promoCode": string,
-    "couponDetails": string,
-    "cashbackPct": number,
-    "cashbackSource": string,
-    "otherPrices": "Retailer A $X | Retailer B $Y",
-    "url": "direct retailer product detail page URL",
-    "low6m": number,
-    "high6m": number,
-    "whenToBuy": "Buy Now — All-Time / BF Low" | "Buy Now — Promo Code Active" | "Wait — Price Drop Expected" | "Hold — At MSRP",
-    "projection": string
-  }
-]`;
-      }
-
-      for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
-        if (batchCancelRequested) break;
-        const chunk = chunks[cIdx];
-        titleEl.textContent = `Batch ${cIdx + 1} of ${chunks.length}: checking ${chunk.map(x => x.name).join(', ')}`;
-        let remaining = [...chunk];
-
-        try {
-          const arr = await callGeminiWithSearch(apiKey, buildChunkPrompt(chunk), { requireSearch: true, expectArray: true });
-          const results = Array.isArray(arr) ? arr : [arr];
-          const matchedIds = new Set();
-          for (const parsed of results) {
-            if (!parsed || typeof parsed !== 'object') continue;
-            const target = chunk.find(it => it.id === parsed.id) || chunk.find(it => parsed.name && it.name.toLowerCase().includes(String(parsed.name).toLowerCase().slice(0, 12)));
-            if (!target || matchedIds.has(target.id)) continue;
-            matchedIds.add(target.id);
-            const updated = applyParsedToItem(target, parsed);
-            state.items = state.items.map(i => i.id === target.id ? updated : i);
-            saveState(true);
-            pushItemToGoogleSheet(updated, 'update');
-            updatedCount++;
-            completedCount++;
-            lastEl.textContent = `Updated ${completedCount}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`;
-            lastEl.classList.remove('hidden');
-          }
-          remaining = chunk.filter(it => !matchedIds.has(it.id));
-          renderAll();
-        } catch (err) {
-          lastErrorMsg = err.message || 'Batch lookup failed';
-        }
-
-        // Fallback to single-item lookup only for any item omitted from the chunk response
-        for (const item of remaining) {
-          if (batchCancelRequested) break;
-          try {
-            const parsed = await callGeminiWithSearch(apiKey, buildLiveDealSearchPrompt(item, getItemModel(item)), { requireSearch: true });
-            const updated = applyParsedToItem(item, parsed);
-            state.items = state.items.map(i => i.id === item.id ? updated : i);
-            saveState(true);
-            pushItemToGoogleSheet(updated, 'update');
-            updatedCount++;
-            completedCount++;
-            lastEl.textContent = `Updated ${completedCount}/${targets.length}: ${updated.name} -> ${fmtCurrency(updated.bestPrice)} at ${updated.retailer}`;
-            lastEl.classList.remove('hidden');
-            renderAll();
-          } catch (err) {
-            failedCount++;
-            completedCount++;
-            lastErrorMsg = err.message || 'Lookup failed';
-            lastEl.textContent = `Skipped ${completedCount}/${targets.length}: ${item.name} (${lastErrorMsg})`;
-            lastEl.classList.remove('hidden');
-          }
-        }
-
-        const donePct = Math.round((completedCount / targets.length) * 100);
-        barEl.style.width = `${Math.max(4, donePct)}%`;
-        countEl.textContent = `${completedCount} of ${targets.length} (${donePct}%)`;
-
-        if (cIdx < chunks.length - 1 && !batchCancelRequested) {
-          await new Promise(r => setTimeout(r, 1200));
-        }
-      }
-
-      state.recalculatingId = null;
-      batchUpdating = false;
-      stopBtn.classList.add('hidden');
-      closeBtn.classList.remove('hidden');
-      headerBtn.disabled = false;
-      headerBtn.classList.remove('opacity-70');
-      if (iconEl) iconEl.classList.remove('animate-spin');
-      renderAll();
-
-      const skippedMsg = skippedCount > 0 ? ` (${skippedCount} purchased skipped)` : '';
-      const failedMsg = failedCount > 0 ? `, ${failedCount} failed` : '';
-      if (updatedCount === 0 && failedCount > 0) {
-        titleEl.textContent = 'Batch Price Update Failed';
-        subEl.textContent = `0 of ${targets.length} updated — ${lastErrorMsg}. Check your Gemini API key below.`;
-        keyBox.classList.remove('hidden');
-      } else {
-        titleEl.textContent = batchCancelRequested ? 'Batch Price Update Stopped' : 'All Active Prices & Predictions Updated';
-        subEl.textContent = `Updated ${updatedCount} of ${targets.length} active items${failedMsg}${skippedMsg} and synced to Google Sheet.`;
-      }
-      showToast(`Updated ${updatedCount} active items & synced to Google Sheet`);
-    }
-
-    document.getElementById('btn-update-all-prices').addEventListener('click', openBatchPriceConfig);
-    document.getElementById('btn-batch-stop').addEventListener('click', () => {
-      batchCancelRequested = true;
-    });
-    document.getElementById('btn-batch-close').addEventListener('click', () => {
-      document.getElementById('batch-update-banner').classList.add('hidden');
-    });
-    document.getElementById('btn-batch-start-with-key').addEventListener('click', () => {
-      const k = document.getElementById('batch-api-key').value.trim();
-      if (!k) return;
-      saveGeminiKey(k);
-      runBatchPriceUpdate();
-    });
     document.getElementById('close-ai-modal').addEventListener('click', () => closeModal('ai-modal'));
     document.getElementById('ai-modal').addEventListener('click', e => {
       if (e.target.id === 'ai-modal') closeModal('ai-modal');
